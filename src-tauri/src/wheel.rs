@@ -308,7 +308,10 @@ mod tests {
         // The link to a large file outside the folder must not add up its content
         let big = std::env::temp_dir().join(format!("mandarina_fi_big_{}", std::process::id()));
         std::fs::write(&big, vec![0u8; 100_000]).unwrap();
+        #[cfg(unix)]
         std::os::unix::fs::symlink(&big, dir.join("enlace")).unwrap();
+        #[cfg(windows)]
+        let _ = &big;
 
         let file = info_of(&dir.join("a.txt")).unwrap();
         assert_eq!(file, FileInfo { name: "a.txt".into(), size: 5, is_dir: false });

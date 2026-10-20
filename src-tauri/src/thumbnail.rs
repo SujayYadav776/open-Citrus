@@ -1,8 +1,8 @@
-use crate::converters::{kill_group, tool_exists, TempDir};
+use crate::converters::{tool_exists, TempDir};
+use crate::spawn::{kill_tree, spawn_killing_tree};
 use crate::lang::tr;
 use crate::tr;
 use std::io::Read;
-use std::os::unix::process::CommandExt;
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
@@ -54,21 +54,20 @@ pub(crate) fn capture_with<T: Send + 'static>(
     deadline: Instant,
     read: impl FnOnce(std::process::ChildStdout) -> T + Send + 'static,
 ) -> Result<T, String> {
-    let mut child = Command::new(program)
+    let mut command = Command::new(program);
+    command
         .args(args)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .process_group(0)
-        .spawn()
-        .map_err(|_| no_thumbnail())?;
+        .stderr(Stdio::null());
+    let mut child = spawn_killing_tree(command).map_err(|_| no_thumbnail())?;
     let stdout = child.stdout.take();
     let reader = std::thread::spawn(move || stdout.map(read));
     let status = loop {
         match child.try_wait() {
             Ok(Some(status)) => break status,
             Ok(None) if Instant::now() >= deadline => {
-                kill_group(child.id());
+                kill_tree(&child);
                 let _ = child.kill();
                 let _ = child.wait();
                 let _ = reader.join();

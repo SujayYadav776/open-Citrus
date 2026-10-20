@@ -111,7 +111,7 @@
   "editor.name.initial": "{name} (coupé)",
   "editor.name.fallback": "fichier",
   "editor.name.empty": "Saisissez un nom",
-  "editor.name.slash": "Le nom ne peut pas contenir « / »",
+  "editor.name.slash": "Le nom ne peut pas contenir \\ / : * ? \" < > |",
   "editor.name.invalid": "Nom non valide",
   "editor.name.tooLong": "Nom trop long",
 
@@ -159,7 +159,7 @@
   "editor.video.frameFailed": "Impossible de charger l'image",
   "editor.video.frameFailedDetail": "Impossible de charger l'image : {detail}",
 
-  "demo.ffmpegMissing": "ffmpeg est absent. Installez-le avec : sudo apt install ffmpeg",
+  "demo.ffmpegMissing": "ffmpeg est absent. Installez-le avec : winget install Gyan.FFmpeg (Windows) ou sudo apt install ffmpeg (Linux)",
   "demo.damaged": "Fichier endommagé",
   "demo.optimized": "Déjà optimisé",
   "demo.suffix.compress": "compressé",

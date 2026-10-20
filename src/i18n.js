@@ -113,7 +113,7 @@
     "editor.name.initial": "{name} (trimmed)",
     "editor.name.fallback": "file",
     "editor.name.empty": "Enter a name",
-    "editor.name.slash": "The name can't contain “/”",
+    "editor.name.slash": "The name can't contain \\ / : * ? \" < > |",
     "editor.name.invalid": "Invalid name",
     "editor.name.tooLong": "Name too long",
 
@@ -161,7 +161,7 @@
     "editor.video.frameFailed": "Could not load the frame",
     "editor.video.frameFailedDetail": "Could not load the frame: {detail}",
 
-    "demo.ffmpegMissing": "ffmpeg is missing. Install it with: sudo apt install ffmpeg",
+    "demo.ffmpegMissing": "ffmpeg is missing. Install it with: winget install Gyan.FFmpeg (Windows) or sudo apt install ffmpeg (Linux)",
     "demo.damaged": "Damaged file",
     "demo.optimized": "Already optimized",
     "demo.suffix.compress": "compressed",
@@ -285,7 +285,7 @@
     "editor.name.initial": "{name} (recortado)",
     "editor.name.fallback": "archivo",
     "editor.name.empty": "Escribe un nombre",
-    "editor.name.slash": "El nombre no puede llevar «/»",
+    "editor.name.slash": "El nombre no puede llevar \\ / : * ? \" < > |",
     "editor.name.invalid": "Nombre no válido",
     "editor.name.tooLong": "Nombre demasiado largo",
 
@@ -333,7 +333,7 @@
     "editor.video.frameFailed": "No se pudo cargar el fotograma",
     "editor.video.frameFailedDetail": "No se pudo cargar el fotograma: {detail}",
 
-    "demo.ffmpegMissing": "Falta ffmpeg. Instálalo con: sudo apt install ffmpeg",
+    "demo.ffmpegMissing": "Falta ffmpeg. Instálalo con: winget install Gyan.FFmpeg (Windows) o sudo apt install ffmpeg (Linux)",
     "demo.damaged": "Archivo dañado",
     "demo.optimized": "Ya está optimizado",
     "demo.suffix.compress": "comprimido",

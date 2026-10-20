@@ -111,7 +111,7 @@
   "editor.name.initial": "{name} (cortado)",
   "editor.name.fallback": "arquivo",
   "editor.name.empty": "Digite um nome",
-  "editor.name.slash": "O nome não pode conter “/”",
+  "editor.name.slash": "O nome não pode conter \\ / : * ? \" < > |",
   "editor.name.invalid": "Nome inválido",
   "editor.name.tooLong": "Nome longo demais",
 
@@ -159,7 +159,7 @@
   "editor.video.frameFailed": "Não foi possível carregar o quadro",
   "editor.video.frameFailedDetail": "Não foi possível carregar o quadro: {detail}",
 
-  "demo.ffmpegMissing": "O ffmpeg não está instalado. Instale com: sudo apt install ffmpeg",
+  "demo.ffmpegMissing": "O ffmpeg não está instalado. Instale com: winget install Gyan.FFmpeg (Windows) ou sudo apt install ffmpeg (Linux)",
   "demo.damaged": "Arquivo danificado",
   "demo.optimized": "Já otimizado",
   "demo.suffix.compress": "comprimido",

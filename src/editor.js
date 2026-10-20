@@ -208,8 +208,10 @@
   function validarNombre(texto) {
     const nombre = String(texto).trim();
     if (nombre === "") return tr("editor.name.empty");
-    if (nombre.includes("/")) return tr("editor.name.slash");
+    if (/[\\/:*?"<>|]/.test(nombre)) return tr("editor.name.slash");
     if (nombre === "." || nombre === "..") return tr("editor.name.invalid");
+    // Names Windows reserves (with or without extension) are invalid there too
+    if (/^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\..*)?$/i.test(nombre)) return tr("editor.name.invalid");
     if (Array.from(nombre).length > MAX_NOMBRE) return tr("editor.name.tooLong");
     return "";
   }

@@ -1,3 +1,4 @@
+use crate::spawn::install_hint;
 use crate::converters::{
     category, get_ext, get_stem, move_file, need, pack, probe_duration, run_in, run_progress, st, unique_path,
     Kind, Progress, TempDir, CANCEL,
@@ -486,7 +487,7 @@ fn parse_size(text: &str) -> Option<(u32, u32)> {
 // Compresses a PDF with ghostscript into a temporary folder and moves it to `out` (ghostscript interprets
 // the "%" of an output name, so it is not given the final path)
 fn compress_pdf(src: &str, out: &Path) -> Result<(), String> {
-    let gs = need(&["gs"], "sudo apt install ghostscript")?;
+    let gs = need(&["gs"], &install_hint("ghostscript"))?;
     let tmp = TempDir::new()?;
     let tmp_out = tmp.path().join("salida.pdf");
     let output = format!("-sOutputFile={}", st(&tmp_out));
@@ -524,7 +525,7 @@ fn run_tool_with(path: &str, tool: &str, option: Option<&str>, params: Option<&V
 
     let result = match kind {
         Kind::Image => {
-            let magick = need(&["magick"], "sudo apt install imagemagick")?;
+            let magick = need(&["magick"], &install_hint("imagemagick"))?;
             // The crop is validated against the oriented image
             let crop = if tool == "trim" {
                 let (w, h) = image_size(&src_text)?;
@@ -536,7 +537,7 @@ fn run_tool_with(path: &str, tool: &str, option: Option<&str>, params: Option<&V
             run_in(&magick, &as_refs(&args), None)
         }
         Kind::Audio | Kind::Video => {
-            need(&["ffmpeg"], "sudo apt install ffmpeg")?;
+            need(&["ffmpeg"], &install_hint("ffmpeg"))?;
             let duration = probe_duration(&src_text);
             let trim = if tool == "trim" {
                 Some(parse_trim(params, duration.ok_or_else(|| tr("Could not read the duration", "No se pudo leer la duración"))?)?)
@@ -620,7 +621,7 @@ fn media_info_blocking(path: &str) -> Result<MediaInfo, String> {
             Ok(MediaInfo { kind: "imagen".into(), width: Some(w), height: Some(h), duration: None })
         }
         Kind::Audio | Kind::Video => {
-            need(&["ffprobe"], "sudo apt install ffmpeg")?;
+            need(&["ffprobe"], &install_hint("ffmpeg"))?;
             let entries = "stream=codec_type,width,height:stream_tags=rotate:stream_side_data=rotation:format=duration";
             let args = ["-v", "error", "-print_format", "json", "-show_entries", entries, "--", src.as_str()];
             let bytes = capture("ffprobe", &args, Instant::now() + QUICK_WAIT).map_err(|_| cannot_read_file())?;
@@ -652,7 +653,7 @@ fn preview_image_blocking(path: &str, max_side: u32) -> Result<String, String> {
     if !src.is_file() || category(&src) != Some(Kind::Image) {
         return Err(tr("Not an image", "No es una imagen"));
     }
-    need(&["magick"], "sudo apt install imagemagick")?;
+    need(&["magick"], &install_hint("imagemagick"))?;
     let first_frame = format!("{}[0]", st(&src));
     let size = format!("{0}x{0}>", clamp_side(max_side));
     // On a white background: JPEG has no transparency
@@ -666,7 +667,7 @@ fn video_frame_blocking(path: &str, seconds: f64, max_side: u32) -> Result<Strin
     if !src.is_file() || category(&src) != Some(Kind::Video) {
         return Err(tr("Not a video", "No es un vídeo"));
     }
-    need(&["ffmpeg"], "sudo apt install ffmpeg")?;
+    need(&["ffmpeg"], &install_hint("ffmpeg"))?;
     if !seconds.is_finite() {
         return Err(tr("The time is not valid", "El tiempo no es válido"));
     }
@@ -756,7 +757,7 @@ fn waveform_blocking(path: &str, buckets: u32) -> Result<Vec<f32>, String> {
     if buckets == 0 || buckets > 4000 {
         return Err(tr("Invalid number of bars", "Número de barras no válido"));
     }
-    need(&["ffmpeg"], "sudo apt install ffmpeg")?;
+    need(&["ffmpeg"], &install_hint("ffmpeg"))?;
     let src = st(&src);
     let buckets = buckets as usize;
     // With the duration, it is known how many samples each bucket has and the audio is processed without storing it

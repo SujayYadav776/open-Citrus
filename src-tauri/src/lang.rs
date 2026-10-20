@@ -93,7 +93,13 @@ static ACTIVE: Mutex<Option<Lang>> = Mutex::new(None);
 // (if MANDARINA_LANG is set, it wins and changing the language in the settings has no visible effect)
 #[cfg(not(test))]
 fn detect_now() -> Lang {
-    detect(|name| std::env::var(name).ok().or_else(|| if name == "MANDARINA_LANG" { crate::config::saved_language() } else { None }))
+    detect(|name| {
+        std::env::var(name)
+            .ok()
+            // On Windows there is no LANG: the user locale fills that slot (lowest priority)
+            .or_else(|| crate::spawn::locale_fallback(name))
+            .or_else(|| if name == "MANDARINA_LANG" { crate::config::saved_language() } else { None })
+    })
 }
 
 #[cfg(not(test))]

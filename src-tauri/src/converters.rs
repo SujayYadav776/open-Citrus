@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 use std::io::{BufRead, BufReader, Read};
-use std::os::unix::process::CommandExt;
+use crate::spawn::{install_hint, kill_tree, spawn_killing_tree, Proc};
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
@@ -194,7 +194,12 @@ fn unique_folder(folder: &Path, name: &str) -> PathBuf {
 // Looks for the program in the PATH without running it (so LibreOffice is not launched just to check)
 pub(crate) fn tool_exists(name: &str) -> bool {
     let path = std::env::var_os("PATH").unwrap_or_default();
-    std::env::split_paths(&path).any(|dir| dir.join(name).is_file())
+    std::env::split_paths(&path).any(|dir| {
+        dir.join(name).is_file()
+            // On Windows the tools are ffmpeg.exe, magick.exe...; CreateProcess appends
+            // the extension when launching, so existence must too
+            || (cfg!(windows) && dir.join(format!("{name}.exe")).is_file())
+    })
 }
 
 pub(crate) fn need(names: &[&str], hint: &str) -> Result<String, String> {
@@ -330,14 +335,13 @@ pub(crate) fn run_progress(
         .args(args)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        // Own process group: that way what the program launches (soffice) can be killed too
-        .process_group(0);
+        .stderr(Stdio::piped());
     if let Some(dir) = dir {
         command.current_dir(dir);
     }
-    let mut child = command
-        .spawn()
+    // Own killable unit (process group on Unix, Job Object on Windows): that way what
+    // the program launches (soffice) can be killed too
+    let mut child: Proc = spawn_killing_tree(command)
         .map_err(|e| tr!("Could not run {program}: {e}", "No se pudo ejecutar {program}: {e}", program = program, e = e))?;
     let stdout_reader = match progress {
         Some((total, callback)) => read_progress_in_thread(child.stdout.take(), total, callback),
@@ -347,7 +351,7 @@ pub(crate) fn run_progress(
 
     let status = loop {
         if CANCEL.load(Ordering::SeqCst) {
-            kill_group(child.id());
+            kill_tree(&child);
             let _ = child.kill();
             let _ = child.wait();
             // When all the processes die the pipes close and the threads finish
@@ -374,14 +378,6 @@ pub(crate) fn run_progress(
         Some(line) => Err(line.to_string()),
         None => Err(tr!("{program} failed", "{program} falló", program = program)),
     }
-}
-
-// Kills the whole process group of the child (its pgid is its pid because we use process_group(0))
-pub(crate) fn kill_group(pid: u32) {
-    let _ = Command::new("kill")
-        .args(["-KILL", "--", &format!("-{pid}")])
-        .stderr(Stdio::null())
-        .status();
 }
 
 // Text path to pass it to a program (the paths are already absolute, they never start with "-")
@@ -436,7 +432,7 @@ fn convert_image(src: &str, out: &str) -> Result<(), String> {
     if get_ext(Path::new(src)) == "svg" {
         return convert_svg(src, out);
     }
-    let tool = need(&["magick", "convert"], "sudo apt install imagemagick")?;
+    let tool = need(&["magick", "convert"], &install_hint("imagemagick"))?;
     run(&tool, &[src, "-auto-orient", out])
 }
 
@@ -444,7 +440,7 @@ fn convert_svg(src: &str, out: &str) -> Result<(), String> {
     if !tool_exists("rsvg-convert") {
         return match need(&["magick", "convert"], "") {
             Ok(tool) => run(&tool, &[src, out]),
-            Err(_) => Err(tr("Cannot read SVG files. Install: sudo apt install librsvg2-bin", "No se pueden leer SVG. Instala: sudo apt install librsvg2-bin")),
+            Err(_) => Err(tr!("Cannot read SVG files. Install: {hint}", "No se pueden leer SVG. Instala: {hint}", hint = install_hint("librsvg2-bin"))),
         };
     }
     let fmt = get_ext(Path::new(out));
@@ -485,7 +481,7 @@ fn ffmpeg_convert_args(src: &str, out: &str, target: &str, real_progress: bool) 
 }
 
 fn convert_ffmpeg(src: &str, out: &str, target: &str, progress: Option<Progress>) -> Result<(), String> {
-    need(&["ffmpeg"], "sudo apt install ffmpeg")?;
+    need(&["ffmpeg"], &install_hint("ffmpeg"))?;
     // There is only real progress if someone is listening and the duration is known
     let progress = match progress {
         Some(callback) => probe_duration(src).map(|total| (total, callback)),
@@ -528,7 +524,7 @@ fn wrap_centered_paragraphs(html: &str) -> String {
 const COLUMNS: &str = "--columns=100000";
 
 fn convert_pandoc(src: &Path, out: &Path, target: &str) -> Result<(), String> {
-    need(&["pandoc"], "sudo apt install pandoc")?;
+    need(&["pandoc"], &install_hint("pandoc"))?;
     let folder = out.parent().unwrap_or(Path::new("."));
     let stem = get_stem(out);
     let src_dir = src.parent().unwrap_or(Path::new("."));
@@ -602,7 +598,7 @@ fn convert_pandoc(src: &Path, out: &Path, target: &str) -> Result<(), String> {
 // Runs LibreOffice without a window and returns the file produced (inside tmp).
 // It uses its own profile inside tmp so it does not clash with an open LibreOffice.
 fn libreoffice(src: &Path, tmp: &Path, convert_to: &str, infilter: Option<&str>) -> Result<PathBuf, String> {
-    let tool = need(&["soffice", "libreoffice"], "sudo apt install libreoffice")?;
+    let tool = need(&["soffice", "libreoffice"], &install_hint("libreoffice"))?;
     let outdir = new_subdir(tmp)?;
     let profile = format!("-env:UserInstallation=file://{}", st(&tmp.join("profile")));
     let infilter = infilter.map(|f| format!("--infilter={f}"));
@@ -625,7 +621,7 @@ fn libreoffice(src: &Path, tmp: &Path, convert_to: &str, infilter: Option<&str>)
 
 // One image per page at 300 DPI inside out_folder (the folder is created here)
 fn pdf_to_images(pdf: &Path, out_folder: &Path, target: &str) -> Result<(), String> {
-    need(&["pdftoppm"], "sudo apt install poppler-utils")?;
+    need(&["pdftoppm"], &install_hint("poppler-utils"))?;
     std::fs::create_dir(out_folder).map_err(|e| tr!("Could not create the folder: {e}", "No se pudo crear la carpeta: {e}", e = e))?;
     let flag = if target == "png" { "-png" } else { "-jpeg" };
     let prefix = st(&out_folder.join("page"));
@@ -701,7 +697,7 @@ fn convert_pdf(src: &Path, out: &Path, target: &str) -> Result<(), String> {
     let tmp = TempDir::new()?;
     match target {
         "txt" => {
-            need(&["pdftotext"], "sudo apt install poppler-utils")?;
+            need(&["pdftotext"], &install_hint("poppler-utils"))?;
             run("pdftotext", &["-layout", &st(src), &st(out)])
         }
         "jpg" | "png" => pdf_to_images(src, out, target),
@@ -817,7 +813,7 @@ fn extract_archive(src: &Path, dest: &Path) -> Result<(), String> {
             if tool_exists("unzip") {
                 run("unzip", &["-q", &src, "-d", &dest])
             } else {
-                let sz = need(&["7z", "7zz", "7za"], "sudo apt install unzip")?;
+                let sz = need(&["7z", "7zz", "7za"], &install_hint("unzip"))?;
                 run(&sz, &["x", "-y", &format!("-o{dest}"), "--", &src])
             }
         }
@@ -829,12 +825,12 @@ fn extract_archive(src: &Path, dest: &Path) -> Result<(), String> {
             } else if tool_exists("bsdtar") {
                 run("bsdtar", &["-xf", &src, "-C", &dest])
             } else {
-                Err(tr("Cannot open RAR files. Install: sudo apt install 7zip", "No se pueden abrir RAR. Instala: sudo apt install 7zip"))
+                Err(tr!("Cannot open RAR files. Install: {hint}", "No se pueden abrir RAR. Instala: {hint}", hint = install_hint("7zip")))
             }
         }
         // tar, tar.gz and tgz: tar detects the compression by itself
         _ => {
-            need(&["tar"], "sudo apt install tar")?;
+            need(&["tar"], &install_hint("tar"))?;
             run("tar", &["-xf", &src, "-C", &dest])
         }
     }
@@ -850,11 +846,11 @@ fn convert_archive(src: &Path, out: &Path, target: &str) -> Result<(), String> {
     match target {
         // -y stores symbolic links as links, without following them outside the folder
         "zip" => {
-            need(&["zip"], "sudo apt install zip")?;
+            need(&["zip"], &install_hint("zip"))?;
             run_in("zip", &["-r", "-q", "-y", &out, "."], Some(&files))
         }
         _ => {
-            need(&["tar"], "sudo apt install tar")?;
+            need(&["tar"], &install_hint("tar"))?;
             let flags = if target == "tar.gz" { "-czf" } else { "-cf" };
             run("tar", &[flags, &out, "-C", &st(&files), "."])
         }
@@ -870,11 +866,11 @@ fn convert_folder(src: &Path, out: &Path, target: &str) -> Result<(), String> {
     match target {
         // -y stores symbolic links as links, without following them outside the folder
         "zip" => {
-            need(&["zip"], "sudo apt install zip")?;
+            need(&["zip"], &install_hint("zip"))?;
             run_in("zip", &["-r", "-q", "-y", &out, "--", &name], Some(parent))
         }
         _ => {
-            need(&["tar"], "sudo apt install tar")?;
+            need(&["tar"], &install_hint("tar"))?;
             let flags = if target == "tar.gz" { "-czf" } else { "-cf" };
             run("tar", &[flags, &out, "-C", &st(parent), "--", &name])
         }
@@ -913,20 +909,20 @@ pub(crate) fn pack(paths: &[String], format: &str) -> Result<String, String> {
             name = format!("{i} {}", src.file_name().unwrap_or_default().to_string_lossy());
             i += 1;
         }
-        std::os::unix::fs::symlink(src, tmp.path().join(&name))
+        stage_input(src, &tmp.path().join(&name))
             .map_err(|e| tr!("Could not prepare the files: {e}", "No se pudieron preparar los archivos: {e}", e = e))?;
         names.push(name);
     }
     let out_text = st(&out);
     let result = match format {
         "zip" => {
-            need(&["zip"], "sudo apt install zip").and_then(|_| {
+            need(&["zip"], &install_hint("zip")).and_then(|_| {
                 let mut args = vec!["-r", "-q", out_text.as_str(), "--"];
                 args.extend(names.iter().map(String::as_str));
                 run_in("zip", &args, Some(tmp.path()))
             })
         }
-        _ => need(&["tar"], "sudo apt install tar").and_then(|_| {
+        _ => need(&["tar"], &install_hint("tar")).and_then(|_| {
             let flags = if format == "tar.gz" { "-chzf" } else { "-chf" };
             let dir = st(tmp.path());
             let mut args = vec![flags, out_text.as_str(), "-C", dir.as_str(), "--"];
@@ -1880,8 +1876,8 @@ trailer<</Root 1 0 R/Size 6>>\n%%EOF\n";
     #[test]
     fn avisa_si_falta_una_herramienta() {
         assert_eq!(
-            need(&["herramienta_que_no_existe"], "sudo apt install x"),
-            Err("herramienta_que_no_existe not found. Install it with: sudo apt install x".to_string())
+            need(&["herramienta_que_no_existe"], &install_hint("x")),
+            Err(format!("herramienta_que_no_existe not found. Install it with: {}", install_hint("x")))
         );
         // With several options it is enough that one exists
         assert_eq!(need(&["herramienta_que_no_existe", "sh"], "x"), Ok("sh".to_string()));
@@ -2441,11 +2437,24 @@ trailer<</Root 1 0 R/Size 6>>\n%%EOF\n";
         assert_eq!(many(&[]).unwrap_err(), "No hay archivos");
         assert_eq!(many(&[xyz.to_string()]).unwrap().failed[0].error, "Tipo de archivo no soportado");
         assert_eq!(
-            need(&["herramienta_que_no_existe"], "sudo apt install x"),
-            Err("No se encontró herramienta_que_no_existe. Instálalo con: sudo apt install x".to_string())
+            need(&["herramienta_que_no_existe"], &install_hint("x")),
+            Err(format!("No se encontró herramienta_que_no_existe. Instálalo con: {}", install_hint("x")))
         );
         assert_eq!(cancelled_run(), Err("[cancelled] Cancelado".to_string()));
         crate::lang::set_lang(crate::lang::Lang::En);
         std::fs::remove_dir_all(&dir).unwrap();
     }
+}
+
+// Places one file inside the staging folder without duplicating data when possible:
+// a symlink on Unix, a hard link on Windows when source and temp share a volume
+// (temp lives on %TEMP%, sources can be anywhere), and a copy otherwise.
+#[cfg(unix)]
+pub(crate) fn stage_input(src: &Path, dest: &Path) -> Result<(), std::io::Error> {
+    std::os::unix::fs::symlink(src, dest)
+}
+
+#[cfg(windows)]
+pub(crate) fn stage_input(src: &Path, dest: &Path) -> Result<(), std::io::Error> {
+    std::fs::hard_link(src, dest).or_else(|_| std::fs::copy(src, dest).map(|_| ()))
 }

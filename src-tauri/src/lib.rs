@@ -1,6 +1,7 @@
 mod config;
 mod converters;
 mod lang;
+mod spawn;
 mod thumbnail;
 mod tools;
 mod wheel;

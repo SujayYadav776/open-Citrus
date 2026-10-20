@@ -115,6 +115,8 @@ fn config_path() -> PathBuf {
         .map(PathBuf::from)
         .or_else(|| std::env::var_os("XDG_CONFIG_HOME").filter(|v| !v.is_empty()).map(|v| PathBuf::from(v).join("mandarina")))
         .or_else(|| std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".config").join("mandarina")))
+        // Windows: no HOME/XDG in cmd/Explorer launches; APPDATA is the config home there
+        .or_else(|| std::env::var_os("APPDATA").map(|v| PathBuf::from(v).join("mandarina")))
         .unwrap_or_else(|| PathBuf::from("."));
     base.join("config.json")
 }

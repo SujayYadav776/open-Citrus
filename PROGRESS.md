@@ -33,11 +33,13 @@ Last updated: 2026-10-21 (session 2). Owner: QwenWork agent; keep this file curr
 ## Remaining
 
 ### M2 - Converter parity
-STATUS (2026-10-21): tools installing via winget (background job `baao6cg2g`: 7zip, GnuWin32 zip/unzip, ImageMagick, pandoc, LibreOffice, Ghostscript, poppler, FLAC). Findings: `magick` was NOT on PATH during M1's test run (image tests pass via stubbed runs, so it was never proven); `unzip`/`tar` were only Git-Bash binaries (System32 bsdtar covers tar; unzip must come from GnuWin32/7z); rsvg-convert has no winget package (document as limitation; probe ImageMagick internal SVG renderer as practical fallback). Matrix driver `m2_matrix.sh` ready: 15 conversions over all 10 kinds + folder, via the repo's own `archivo_real` harness (the app's `convert_blocking` path). Code-review watch-out: `convert_folder` uses `zip -r -q -y out -- name`; GnuWin32 zip may reject `--` - if folder-zip fails there, apply a minimal cfg(windows) arg tweak.
-- [ ] Locate/install remaining Windows builds (only ffmpeg was present): ImageMagick (magick), pandoc, LibreOffice (soffice), poppler (pdftoppm/pdftotext), ghostscript, 7zip, zip/unzip, flac; tar OK via System32 bsdtar (winget; detect, never auto-install in the product).
-- [x] (spilled from M1) `cargo test` already green on Windows: 122/122; no path-separator fallout found yet.
-- [ ] Gate: conversion matrix reproduces `docs/Converters.md` for all 10 kinds (needs the tools above; then live-run the wheel).
-- [ ] Probe unknowns: HEIC support in installed ImageMagick build; rar read via 7z; cancel a soffice-spawning conversion to prove the Job Object tree-kill live.
+STATUS (2026-10-21): installs done (8/9, gs absent from winget); matrix running as job `b16ieyy90`; probes 1-3 closed below; probe 4 queued behind the matrix. Details per row:
+- [x] Tools installed via winget (8/9): 7zip, GnuWin32 zip/unzip, ImageMagick, pandoc, LibreOffice, poppler, FLAC confirmed on registry PATH; 7-Zip + LibreOffice need manual dir append (installers add no PATH entry). Ghostscript has NO winget package at all (verified: `winget search` returns only tag matches) - needed only by PDF-compression tools, not by any conversion; source decision deferred.
+- [ ] Gate: conversion matrix reproduces `docs/Converters.md` for all 10 kinds - RUNNING (job `b16ieyy90`; first attempt died on the PATH-refresh-evicts-coreutils bug, fixed, results pending).
+- [x] Probe 1 HEIC: ImageMagick 7.1.2-34 (libheif 1.23.6) registers HEIC/HEIF `r--` and AVIF `rw+` - exact parity with upstream's "heic input only" docs. No porting action.
+- [x] Probe 2 RAR: 7-Zip ships Rar + Rar5 format handlers (extract-only), matching the app's rar-input-only design via its 7z fallback. No porting action.
+- [x] Probe 3 SVG: `rsvg-convert` uninstallable via winget turned out minor - `converters.rs:440` falls back to ImageMagick when rsvg is absent (svg->png verified working, 319B render). Real remaining rsvg surface: SVG center-thumbnail preview (degrades silently via `tool_exists` guard) + formats needing an rsvg intermediate. Quality caveat logged: magick's internal SVG renderer can misrender complex SVGs.
+- [ ] Probe 4 (tree-kill live): built and gated (`RUNTREE=1` in `m2_probes.sh`, drives prebuilt test exe); deliberately sequenced AFTER the matrix to avoid counting the matrix's own soffice instances.
 
 ### M3 - Wheel-at-cursor UX
 - [ ] Native cursor position query replaces the Wayland enlarge-capture-shrink dance (keep `clamp_to_monitor`).

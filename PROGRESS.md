@@ -28,12 +28,13 @@ Last updated: 2026-10-21 (session 2). Owner: QwenWork agent; keep this file curr
 - [x] Locale: `lang.rs::detect` now falls through to `GetUserDefaultLocaleName` in the `LANG` slot (lowest priority; env + saved-setting order preserved).
 - [x] Frontend: `editor.js` `validarNombre` rejects `\ / : * ? " < > |` and Windows reserved names (`CON/PRN/AUX/NUL/COMn/LPTn`); 4 locales updated.
 - [x] OS-aware install hints: `spawn::install_hint()` maps apt names to winget packages (ffmpeg/imagemagick/pandoc/libreoffice/ghostscript/7zip) with a PATH fallback for the rest; all 27 `sudo apt install` sites converted (2 of them were inline `tr()` with no `{hint}` slot - had to switch to the `tr!("...{hint}", ..., hint = ...)` form because the catalog completeness test rejects orphaned keys and placeholder mismatch). pt/fr backend catalogs updated to the new `{hint}` keys.
-- [x] `cargo check` clean and `cargo test` = 122 passed / 0 failed / 1 ignored on Windows (x86_64-pc-windows-msvc). ffmpeg + ImageMagick confirmed on PATH (video/image/thumbnail tools tests exercise them).
+- [x] `cargo check` clean and `cargo test` = 122 passed / 0 failed / 1 ignored on Windows (x86_64-pc-windows-msvc). Correction after M2 check: only ffmpeg was actually on PATH; the magick-using tool tests pass against stubbed programs, so they never proved ImageMagick was installed.
 
 ## Remaining
 
 ### M2 - Converter parity
-- [ ] Locate/install remaining Windows builds (ffmpeg + magick already present): pandoc, LibreOffice (soffice), poppler (pdftoppm/pdftotext), ghostscript, 7zip, zip/unzip, tar, flac (winget; detect, never auto-install in the product).
+STATUS (2026-10-21): tools installing via winget (background job `baao6cg2g`: 7zip, GnuWin32 zip/unzip, ImageMagick, pandoc, LibreOffice, Ghostscript, poppler, FLAC). Findings: `magick` was NOT on PATH during M1's test run (image tests pass via stubbed runs, so it was never proven); `unzip`/`tar` were only Git-Bash binaries (System32 bsdtar covers tar; unzip must come from GnuWin32/7z); rsvg-convert has no winget package (document as limitation; probe ImageMagick internal SVG renderer as practical fallback). Matrix driver `m2_matrix.sh` ready: 15 conversions over all 10 kinds + folder, via the repo's own `archivo_real` harness (the app's `convert_blocking` path). Code-review watch-out: `convert_folder` uses `zip -r -q -y out -- name`; GnuWin32 zip may reject `--` - if folder-zip fails there, apply a minimal cfg(windows) arg tweak.
+- [ ] Locate/install remaining Windows builds (only ffmpeg was present): ImageMagick (magick), pandoc, LibreOffice (soffice), poppler (pdftoppm/pdftotext), ghostscript, 7zip, zip/unzip, flac; tar OK via System32 bsdtar (winget; detect, never auto-install in the product).
 - [x] (spilled from M1) `cargo test` already green on Windows: 122/122; no path-separator fallout found yet.
 - [ ] Gate: conversion matrix reproduces `docs/Converters.md` for all 10 kinds (needs the tools above; then live-run the wheel).
 - [ ] Probe unknowns: HEIC support in installed ImageMagick build; rar read via 7z; cancel a soffice-spawning conversion to prove the Job Object tree-kill live.

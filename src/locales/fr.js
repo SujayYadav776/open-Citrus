@@ -1,6 +1,6 @@
 // Français. Mismas claves que `en` en ../i18n.js; una clave que falte sale en inglés.
 (window.IdiomasExtra = window.IdiomasExtra || {}).fr = {
-  "app.title": "Mandarina",
+  "app.title": "Citrus",
   "home.drop": "Déposez un fichier ici",
 
   "wheel.conversion": "Formats de conversion",

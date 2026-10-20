@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Mandarina",
+  "productName": "Citrus",
   "version": "0.1.0",
   "identifier": "com.mandarina.converter",
   "build": {
@@ -11,7 +11,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "Mandarina",
+        "title": "Citrus",
         "width": 460,
         "height": 460,
         "transparent": true,
@@ -32,7 +32,7 @@
     "targets": ["deb"],
     "category": "Utility",
     "shortDescription": "File converter with a floating radial wheel",
-    "longDescription": "Mandarina converts files locally (images, audio, video, documents, PDF, spreadsheets, subtitles and archives) from a radial wheel that appears next to the cursor, and offers tools such as compress, trim, rotate and resize. It uses ffmpeg, ImageMagick, pandoc, LibreOffice, poppler and ghostscript.",
+    "longDescription": "Citrus converts files locally (images, audio, video, documents, PDF, spreadsheets, subtitles and archives) from a radial wheel that appears next to the cursor, and offers tools such as compress, trim, rotate and resize. It uses ffmpeg, ImageMagick, pandoc, LibreOffice, poppler and ghostscript.",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

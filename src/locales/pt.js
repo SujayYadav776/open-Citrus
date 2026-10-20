@@ -1,6 +1,6 @@
 // Português (Brasil). Mismas claves que `en` en ../i18n.js; una clave que falte sale en inglés.
 (window.IdiomasExtra = window.IdiomasExtra || {}).pt = {
-  "app.title": "Mandarina",
+  "app.title": "Citrus",
   "home.drop": "Solte um arquivo aqui",
 
   "wheel.conversion": "Formatos de conversão",

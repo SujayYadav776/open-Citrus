@@ -2,7 +2,7 @@
 // and are registered in window.IdiomasExtra before this file is loaded. Usage: I18n.init("es"); I18n.t("key", { name: value })
 (function () {
   const en = {
-    "app.title": "Mandarina",
+    "app.title": "Citrus",
     "home.drop": "Drop a file here",
 
     "wheel.conversion": "Conversion formats",
@@ -174,7 +174,7 @@
   };
 
   const es = {
-    "app.title": "Mandarina",
+    "app.title": "Citrus",
     "home.drop": "Suelta un archivo aquí",
 
     "wheel.conversion": "Formatos de conversión",

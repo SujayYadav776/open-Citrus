@@ -53,9 +53,10 @@ Last updated: 2026-10-21 (M5 close-out). Owner: QwenWork agent; keep this file c
 - [x] Internal-name flip DONE (this commit): package `mandarina`->`citrus`, lib `mandarina_lib`->`citrus_lib`, `mainBinaryName: "citrus"` (exe is now `citrus.exe`), identifier `com.citrus.converter`, config folder `mandarina`->`citrus`, env vars `MANDARINA_CONFIG_DIR/LANG/REAL/FORMAT` -> `CITRUS_*` (Citrus-only, no aliases), temp-dir prefixes, wheel.rs argv0, register-explorer.ps1 default path, README. Clean break (no config migration). Upstream attribution kept via `repository` URL + MIT LICENSE. Verified: `Compiling citrus`, 123/123 tests, citrus.exe launches (title "Citrus"), Cargo.lock renamed. Note: Linux deb packaging (install-nautilus/nemo.sh, /usr/share/mandarina) intentionally NOT renamed - port targets Windows.
 
 ### M5 - Verification & close-out - DONE
-- [x] Release build: `mandarina.exe` 4,976,640 B, SHA-256 `1b4dc2b9...a968cc88` (LTO; rustc 1.99.1 matches the compiler commit inferred from the upstream `.deb`).
-- [x] NSIS installer `Citrus_0.1.0_x64-setup.exe` 1.54 MiB, SHA-256 `5a0e6ffb...b248f1`. Needed manual NSIS 3.13 staging into `%LOCALAPPDATA%\tauri\NSIS` (CLI's GitHub download timed out on this network) plus `nsis_tauri_utils-v0.5.3` dll.
-- [x] Silent-install smoke test: `/S` installs to `%LOCALAPPDATA%\Citrus\`; installed exe launched with a file arg, window "Citrus" alive at t+3s.
+- [x] Release build REBUILT after the name flip: `citrus.exe` 4,976,640 B, SHA-256 `1e08dae9...504c34d5` (LTO; rustc 1.99.1 matches the compiler commit inferred from the upstream `.deb`). The old `mandarina.exe` build artifact was recycled.
+- [x] NSIS installer `Citrus_0.1.0_x64-setup.exe` 1.54 MiB, SHA-256 `5d041b5c...a5db125` (rebuilt to bundle citrus.exe). Needed manual NSIS 3.13 staging into `%LOCALAPPDATA%\tauri\NSIS` (CLI's GitHub download timed out on this network) plus `nsis_tauri_utils-v0.5.3` dll.
+- [x] Clean reinstall smoke test: uninstalled the old package, silent-installed the new one; install dir now contains `citrus.exe` (+ `uninstall.exe`, no stale `mandarina.exe`), and `citrus.exe` launches with window "Citrus".
+- [x] Release notes written: `CHANGELOG.md` documents v0.1.0 Citrus with the rename front and center (identity table, artifacts + hashes, verification, limitations, upstream MIT attribution).
 - [x] Visual verification: wheel renders fully at cursor (m3-wheel.png: 7 segments, thumbnail, size pill); free-mode drop card (m3-freemode.png). Environment caveat: in this agent session app windows get reparented into a tabbed host, so HWND-geometry assertions are unreliable here; the offset (0,0) checks passed before hosting kicked in, screenshots are the ground truth.
 - [x] Behavior comparison: the matrix exercises the identical `convert_blocking` code path with the same external tools; `docs/Converters.md` reproduced 16/16 on Windows. A physical Linux side-by-side run remains optional.
 - [x] README rewritten for Citrus (MIT attribution, upstream link, requirements table, documented differences); PROGRESS.md committed per milestone.
@@ -70,6 +71,6 @@ Last updated: 2026-10-21 (M5 close-out). Owner: QwenWork agent; keep this file c
 - Shipped ELF SHA-256: `fb2104abdfbd76d361a1775ef4c6b210b4949e382dfa0b16ee6876e0f32dd923` (6,550,896 B, x86_64)
 - REA evidence ID: `ev_918f674d7a25951e721c4cf6b645c05a59291b9fba9ea2905295d11c31162404`
 - Analyzed tags/commits: tag `v0.1.0-beta` = `628ac7f5`; port base = main `f2607ea`; rename = `849491f`
-- Commit chain: rename `849491f` -> M1 `b5eb924` -> M2 `76a0b89` -> M3 `abad0b3` -> M4 `c901462` -> M5 (close-out)
-- Windows release exe SHA-256: `1b4dc2b92da811c55e1d93cc7c397a6df696453288c92970f2ca8b17a968cc88` (4,976,640 B)
-- NSIS installer SHA-256: `5a0e6ffbf5b8786d9d78f3517ddcc4c3efbbf224dc07d4a7550227f864b248f1` (Citrus_0.1.0_x64-setup.exe, 1.54 MiB)
+- Commit chain: rename `849491f` -> M1 `b5eb924` -> M2 `76a0b89` -> M3 `abad0b3` -> M4 `c901462` -> M5 `5d2b11f` -> internal-name flip `1474d76`
+- Windows release exe (citrus.exe) SHA-256: `1e08dae9b6df2d9614c9981b634b7ffe7ea2060fd80827d4c042ebab504c34d5` (4,976,640 B; post-rename rebuild)
+- NSIS installer SHA-256: `5d041b5c2a3b2cf7bd20503ae81898c8e82187fd0c99f42ee88e05d48a5db125` (Citrus_0.1.0_x64-setup.exe, 1.54 MiB; bundles citrus.exe)

@@ -60,6 +60,7 @@ Last updated: 2026-10-21 (M5 close-out). Owner: QwenWork agent; keep this file c
 - [x] Visual verification: wheel renders fully at cursor (m3-wheel.png: 7 segments, thumbnail, size pill); free-mode drop card (m3-freemode.png). Environment caveat: in this agent session app windows get reparented into a tabbed host, so HWND-geometry assertions are unreliable here; the offset (0,0) checks passed before hosting kicked in, screenshots are the ground truth.
 - [x] Behavior comparison: the matrix exercises the identical `convert_blocking` code path with the same external tools; `docs/Converters.md` reproduced 16/16 on Windows. A physical Linux side-by-side run remains optional.
 - [x] README rewritten for Citrus (MIT attribution, upstream link, requirements table, documented differences); PROGRESS.md committed per milestone.
+- [x] GitHub release PUBLISHED (user-approved): annotated tag `citrus-v0.1.0` -> release https://github.com/SujayYadav776/open-Citrus/releases/tag/citrus-v0.1.0 (draft=false, prerelease=false), body = CHANGELOG v0.1.0, installer attached and publicly downloadable: https://github.com/SujayYadav776/open-Citrus/releases/download/citrus-v0.1.0/Citrus_0.1.0_x64-setup.exe (1,610,713 B, HTTP 200).
 
 ## Known unknowns / risks
 - Binary-to-source build equivalence: not established (no decompile needed; bounded by choice).

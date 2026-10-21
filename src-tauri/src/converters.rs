@@ -191,15 +191,11 @@ fn unique_folder(folder: &Path, name: &str) -> PathBuf {
     candidate
 }
 
-// Looks for the program in the PATH without running it (so LibreOffice is not launched just to check)
+// Looks for the program without running it (so LibreOffice is not launched just to check).
+// Delegates to the resolver, which also covers install dirs that are not on PATH (7-Zip,
+// LibreOffice), so an Explorer-launched app finds them.
 pub(crate) fn tool_exists(name: &str) -> bool {
-    let path = std::env::var_os("PATH").unwrap_or_default();
-    std::env::split_paths(&path).any(|dir| {
-        dir.join(name).is_file()
-            // On Windows the tools are ffmpeg.exe, magick.exe...; CreateProcess appends
-            // the extension when launching, so existence must too
-            || (cfg!(windows) && dir.join(format!("{name}.exe")).is_file())
-    })
+    crate::spawn::find_program(name).is_some()
 }
 
 pub(crate) fn need(names: &[&str], hint: &str) -> Result<String, String> {
@@ -330,7 +326,10 @@ pub(crate) fn run_progress(
     dir: Option<&Path>,
     progress: Option<(f64, Progress)>,
 ) -> Result<(), String> {
-    let mut command = Command::new(program);
+    // Resolve the bare name to a real path (PATH + known install dirs) so tools that are not
+    // on PATH - LibreOffice, 7-Zip - still launch when the app is started from Explorer.
+    let exe = crate::spawn::resolve_program(program);
+    let mut command = Command::new(&exe);
     command
         .args(args)
         .stdin(Stdio::null())
@@ -1629,8 +1628,12 @@ trailer<</Root 1 0 R/Size 6>>\n%%EOF\n";
         let xlsx = convert_blocking(csv.to_str().unwrap(), "xlsx").unwrap();
         assert!(std::fs::metadata(&xlsx).unwrap().len() > 0);
         let tsv = convert_blocking(csv.to_str().unwrap(), "tsv").unwrap();
-        // LibreOffice quotes the texts with this filter (same as in the earlier Python version)
-        let text = std::fs::read_to_string(&tsv).unwrap().replace('"', "");
+        // LibreOffice quotes the texts with this filter (same as in the earlier Python version).
+        // On Windows it also writes CRLF line endings, which is valid TSV; normalize for the compare.
+        let text = std::fs::read_to_string(&tsv)
+            .unwrap()
+            .replace('"', "")
+            .replace("\r\n", "\n");
         assert_eq!(text.trim(), "a\tb\n1\t2");
         std::fs::remove_dir_all(&dir).unwrap();
     }

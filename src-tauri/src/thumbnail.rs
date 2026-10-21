@@ -54,7 +54,8 @@ pub(crate) fn capture_with<T: Send + 'static>(
     deadline: Instant,
     read: impl FnOnce(std::process::ChildStdout) -> T + Send + 'static,
 ) -> Result<T, String> {
-    let mut command = Command::new(program);
+    let exe = crate::spawn::resolve_program(program);
+    let mut command = Command::new(&exe);
     command
         .args(args)
         .stdin(Stdio::null())

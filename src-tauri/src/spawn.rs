@@ -307,3 +307,78 @@ pub(crate) fn install_hint(apt_names: &str) -> String {
         parts.join(" ; or ")
     }
 }
+
+// Known install directories that winget/MSI leave OUT of PATH (LibreOffice, 7-Zip). Without
+// this, an app launched by Explorer - which sees the real system PATH, not a dev shell - cannot
+// find soffice/7z even though they are installed, so those conversions silently vanish.
+#[cfg(windows)]
+fn known_install_paths(name: &str) -> Vec<std::path::PathBuf> {
+    let bases: &[&str] = match name {
+        "soffice" | "libreoffice" => &[
+            r"C:\Program Files\LibreOffice\program",
+            r"C:\Program Files (x86)\LibreOffice\program",
+        ],
+        "7z" | "7za" | "7zz" => &[
+            r"C:\Program Files\7-Zip",
+            r"C:\Program Files (x86)\7-Zip",
+        ],
+        _ => &[],
+    };
+    bases
+        .iter()
+        .map(|b| std::path::PathBuf::from(b).join(format!("{name}.exe")))
+        .collect()
+}
+
+#[cfg(not(windows))]
+fn known_install_paths(_name: &str) -> Vec<std::path::PathBuf> {
+    Vec::new()
+}
+
+// Is the bare tool present on PATH? (Windows: also try name.exe.)
+fn on_path(name: &str) -> Option<std::path::PathBuf> {
+    let path = std::env::var_os("PATH").unwrap_or_default();
+    for dir in std::env::split_paths(&path) {
+        #[cfg(not(windows))]
+        {
+            let cand = dir.join(name);
+            if cand.is_file() {
+                return Some(cand);
+            }
+        }
+        #[cfg(windows)]
+        {
+            let exe = dir.join(format!("{name}.exe"));
+            if exe.is_file() {
+                return Some(exe);
+            }
+        }
+    }
+    None
+}
+
+// Resolve a bare tool name to an existing executable: PATH first, then the known install
+// dirs. Returns None when nothing is found.
+pub(crate) fn find_program(name: &str) -> Option<std::path::PathBuf> {
+    if name.contains('/') || name.contains('\\') {
+        let p = std::path::PathBuf::from(name);
+        return if p.is_file() { Some(p) } else { None };
+    }
+    on_path(name).or_else(|| known_install_paths(name).into_iter().find(|p| p.is_file()))
+}
+
+// The executable to launch. Anything already on PATH (or already a path) is returned
+// unchanged so CreateProcess resolves it exactly as before - crucially, this never swaps in
+// an extensionless MSYS binary (e.g. /usr/bin/tar) in a dev shell. Only tools that are NOT
+// on PATH fall back to a known install dir (soffice, 7-Zip), which is what makes an
+// Explorer-launched app find them.
+pub(crate) fn resolve_program(name: &str) -> String {
+    if name.contains('/') || name.contains('\\') || on_path(name).is_some() {
+        return name.to_string();
+    }
+    known_install_paths(name)
+        .into_iter()
+        .find(|p| p.is_file())
+        .map(|p| p.to_string_lossy().into_owned())
+        .unwrap_or_else(|| name.to_string())
+}

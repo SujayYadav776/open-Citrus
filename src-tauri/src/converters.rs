@@ -404,7 +404,7 @@ static TEMP_COUNTER: AtomicUsize = AtomicUsize::new(0);
 impl TempDir {
     pub(crate) fn new() -> Result<TempDir, String> {
         let n = TEMP_COUNTER.fetch_add(1, Ordering::SeqCst);
-        let dir = std::env::temp_dir().join(format!("mandarina_tmp_{}_{}", std::process::id(), n));
+        let dir = std::env::temp_dir().join(format!("citrus_tmp_{}_{}", std::process::id(), n));
         std::fs::create_dir_all(&dir).map_err(|e| tr!("Could not create temporary folder: {e}", "No se pudo crear carpeta temporal: {e}", e = e))?;
         Ok(TempDir(dir))
     }
@@ -459,7 +459,7 @@ fn convert_svg(src: &str, out: &str) -> Result<(), String> {
         return run("rsvg-convert", &["-f", &fmt, "-o", out, src]);
     }
     // First to an intermediate PNG and then ImageMagick does the rest
-    let mid = std::env::temp_dir().join(format!("mandarina_{}.png", std::process::id()));
+    let mid = std::env::temp_dir().join(format!("citrus_{}.png", std::process::id()));
     let mid_str = mid.to_string_lossy().to_string();
     let result = run("rsvg-convert", &["-f", "png", "-o", &mid_str, src])
         .and_then(|_| convert_image(&mid_str, out));
@@ -1410,7 +1410,7 @@ pub(crate) mod tests {
 
     #[test]
     fn nombre_unico() {
-        let dir = std::env::temp_dir().join(format!("mandarina_u_{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("citrus_u_{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         assert_eq!(unique_path(&dir, "a", "png"), dir.join("a.png"));
         std::fs::write(dir.join("a.png"), b"x").unwrap();
@@ -1423,7 +1423,7 @@ pub(crate) mod tests {
     #[test]
     fn rechaza_formato_no_permitido() {
         let _guard = lock();
-        let dir = std::env::temp_dir().join(format!("mandarina_r_{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("citrus_r_{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let f = dir.join("a.png");
         std::fs::write(&f, b"x").unwrap();
@@ -1438,7 +1438,7 @@ pub(crate) mod tests {
         if !tool_exists("ffmpeg") {
             return;
         }
-        let dir = std::env::temp_dir().join(format!("mandarina_i_{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("citrus_i_{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let wav = dir.join("-tono.wav");
         let wav_str = wav.to_str().unwrap();
@@ -1460,7 +1460,7 @@ pub(crate) mod tests {
         if !tool_exists("magick") {
             return;
         }
-        let dir = std::env::temp_dir().join(format!("mandarina_m_{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("citrus_m_{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let png = dir.join("a.png");
         let png_str = png.to_str().unwrap();
@@ -1472,7 +1472,7 @@ pub(crate) mod tests {
 
     // Temporary folder of each test
     fn test_dir(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("mandarina_t_{}_{}", name, std::process::id()));
+        let dir = std::env::temp_dir().join(format!("citrus_t_{}_{}", name, std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         dir
@@ -2123,14 +2123,14 @@ trailer<</Root 1 0 R/Size 6>>\n%%EOF\n";
     }
 
     // Manual test with a real file, to see how a specific conversion turns out without opening the app:
-    //   MANDARINA_REAL=/ruta/archivo.md MANDARINA_FORMAT=docx cargo test archivo_real -- --ignored --nocapture
+    //   CITRUS_REAL=/ruta/archivo.md CITRUS_FORMAT=docx cargo test archivo_real -- --ignored --nocapture
     // The result is created next to the file, as in the app.
     #[test]
     #[ignore]
     fn archivo_real() {
         let _g = lock();
-        let (Ok(path), Ok(format)) = (std::env::var("MANDARINA_REAL"), std::env::var("MANDARINA_FORMAT")) else {
-            println!("Define MANDARINA_REAL y MANDARINA_FORMAT");
+        let (Ok(path), Ok(format)) = (std::env::var("CITRUS_REAL"), std::env::var("CITRUS_FORMAT")) else {
+            println!("Define CITRUS_REAL y CITRUS_FORMAT");
             return;
         };
         let start = Instant::now();
@@ -2193,7 +2193,7 @@ trailer<</Root 1 0 R/Size 6>>\n%%EOF\n";
         let xml = String::from_utf8_lossy(&std::process::Command::new("unzip").args(["-p", docx.as_str(), "word/document.xml"]).output().unwrap().stdout).to_string();
         assert!(xml.contains("z-index:-251658240"), "the banner must go behind the text");
         // Rendered, the banner is not an empty color block: there are white pixels (the text) inside it
-        run("soffice", &["-env:UserInstallation=file:///tmp/mandarina_banda_profile", "--headless", "--convert-to", "pdf", "--outdir", &st(&dir.join("render")), &docx]).ok();
+        run("soffice", &["-env:UserInstallation=file:///tmp/citrus_banda_profile", "--headless", "--convert-to", "pdf", "--outdir", &st(&dir.join("render")), &docx]).ok();
         let rendered = dir.join("render/banda.pdf");
         if rendered.exists() {
             run("gs", &["-q", "-dNOPAUSE", "-dBATCH", "-sDEVICE=png16m", "-r50", "-dFirstPage=1", "-dLastPage=1", &format!("-sOutputFile={}", st(&dir.join("pagina.png"))), &st(&rendered)]).unwrap();
@@ -2434,7 +2434,7 @@ trailer<</Root 1 0 R/Size 6>>\n%%EOF\n";
     #[test]
     fn mensajes_en_ingles_y_espanol() {
         let _guard = lock();
-        let dir = std::env::temp_dir().join(format!("mandarina_msg_{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("citrus_msg_{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let png = dir.join("a.png");
         let xyz = dir.join("a.xyz");

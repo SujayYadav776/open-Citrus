@@ -6,7 +6,7 @@
 #   CITRUS_BIN overrides the exe path (defaults to the debug build in this working copy).
 param([switch]$Remove)
 
-$exe = if ($env:CITRUS_BIN) { $env:CITRUS_BIN } else { "E:\QwenWork\Mandarina\src-tauri\target\debug\mandarina.exe" }
+$exe = if ($env:CITRUS_BIN) { $env:CITRUS_BIN } else { "E:\QwenWork\Mandarina\src-tauri\target\debug\citrus.exe" }
 $verb = "Citrus.Convert"
 
 $locations = @(

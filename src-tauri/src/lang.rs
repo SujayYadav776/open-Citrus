@@ -60,7 +60,7 @@ pub fn optimized_error() -> String {
 // ---------- Detection ----------
 
 // Environment variables that decide the language, in order of priority
-const VARIABLES: [&str; 5] = ["MANDARINA_LANG", "LC_ALL", "LC_MESSAGES", "LANGUAGE", "LANG"];
+const VARIABLES: [&str; 5] = ["CITRUS_LANG", "LC_ALL", "LC_MESSAGES", "LANGUAGE", "LANG"];
 
 // Pure function: `read` is the "environment reader" (in the app it reads the real variables and in tests
 // a table). The first variable that exists and is not empty decides: if its value starts with "es"
@@ -88,9 +88,9 @@ pub fn detect(read: impl Fn(&str) -> Option<String>) -> Lang {
 #[cfg(not(test))]
 static ACTIVE: Mutex<Option<Lang>> = Mutex::new(None);
 
-// MANDARINA_LANG is the first variable detect looks at: if it is not in the environment, the language
+// CITRUS_LANG is the first variable detect looks at: if it is not in the environment, the language
 // saved in the settings takes its place, so it wins over the system language
-// (if MANDARINA_LANG is set, it wins and changing the language in the settings has no visible effect)
+// (if CITRUS_LANG is set, it wins and changing the language in the settings has no visible effect)
 #[cfg(not(test))]
 fn detect_now() -> Lang {
     detect(|name| {
@@ -98,7 +98,7 @@ fn detect_now() -> Lang {
             .ok()
             // On Windows there is no LANG: the user locale fills that slot (lowest priority)
             .or_else(|| crate::spawn::locale_fallback(name))
-            .or_else(|| if name == "MANDARINA_LANG" { crate::config::saved_language() } else { None })
+            .or_else(|| if name == "CITRUS_LANG" { crate::config::saved_language() } else { None })
     })
 }
 
@@ -220,7 +220,7 @@ mod tests {
 
     #[test]
     fn cada_variable_se_lee() {
-        for name in ["MANDARINA_LANG", "LC_ALL", "LC_MESSAGES", "LANGUAGE", "LANG"] {
+        for name in ["CITRUS_LANG", "LC_ALL", "LC_MESSAGES", "LANGUAGE", "LANG"] {
             assert_eq!(detect(env(&[(name, "es_PE.UTF-8")])), Lang::Es, "{name}");
             assert_eq!(detect(env(&[(name, "en_US.UTF-8")])), Lang::En, "{name}");
         }
@@ -255,13 +255,13 @@ mod tests {
 
     #[test]
     fn el_orden_de_prioridad() {
-        // MANDARINA_LANG wins over everything
+        // CITRUS_LANG wins over everything
         let all_es = [("LC_ALL", "es"), ("LC_MESSAGES", "es"), ("LANGUAGE", "es"), ("LANG", "es")];
-        let mut vars = vec![("MANDARINA_LANG", "en")];
+        let mut vars = vec![("CITRUS_LANG", "en")];
         vars.extend(all_es);
         assert_eq!(detect(env(&vars)), Lang::En);
         let all_en = [("LC_ALL", "en"), ("LC_MESSAGES", "en"), ("LANGUAGE", "en"), ("LANG", "en")];
-        let mut vars = vec![("MANDARINA_LANG", "es")];
+        let mut vars = vec![("CITRUS_LANG", "es")];
         vars.extend(all_en);
         assert_eq!(detect(env(&vars)), Lang::Es);
         // Then LC_ALL, LC_MESSAGES, LANGUAGE and LANG

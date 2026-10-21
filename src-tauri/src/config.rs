@@ -1,5 +1,5 @@
 // User settings: the formats the wheel shows, the language and the color. See docs/Settings.md.
-// They are saved in ~/.config/mandarina/config.json; with no file, or with invalid data, the usual
+// They are saved in ~/.config/citrus/config.json; with no file, or with invalid data, the usual
 // lists from converters.rs are used.
 use crate::converters::{type_targets, Kind};
 use crate::lang::{Lang, LANGUAGES};
@@ -111,12 +111,12 @@ fn check_accent(value: &str) -> Result<String, String> {
 // ---------- Archivo ----------
 
 fn config_path() -> PathBuf {
-    let base = std::env::var_os("MANDARINA_CONFIG_DIR")
+    let base = std::env::var_os("CITRUS_CONFIG_DIR")
         .map(PathBuf::from)
-        .or_else(|| std::env::var_os("XDG_CONFIG_HOME").filter(|v| !v.is_empty()).map(|v| PathBuf::from(v).join("mandarina")))
-        .or_else(|| std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".config").join("mandarina")))
+        .or_else(|| std::env::var_os("XDG_CONFIG_HOME").filter(|v| !v.is_empty()).map(|v| PathBuf::from(v).join("citrus")))
+        .or_else(|| std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".config").join("citrus")))
         // Windows: no HOME/XDG in cmd/Explorer launches; APPDATA is the config home there
-        .or_else(|| std::env::var_os("APPDATA").map(|v| PathBuf::from(v).join("mandarina")))
+        .or_else(|| std::env::var_os("APPDATA").map(|v| PathBuf::from(v).join("citrus")))
         .unwrap_or_else(|| PathBuf::from("."));
     base.join("config.json")
 }
@@ -352,7 +352,7 @@ mod tests {
 
     #[test]
     fn guarda_y_lee_el_archivo() {
-        let dir = std::env::temp_dir().join(format!("mandarina_cfg_{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("citrus_cfg_{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         let path = dir.join("sub").join("config.json");
         // No file: default values

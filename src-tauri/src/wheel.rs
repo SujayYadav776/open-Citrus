@@ -347,7 +347,7 @@ mod tests {
 
     #[test]
     fn rutas_iniciales_desde_argumentos() {
-        let dir = std::env::temp_dir().join(format!("mandarina_w_{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("citrus_w_{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let file = dir.join("a.txt");
         let other = dir.join("b b.txt");
@@ -356,46 +356,46 @@ mod tests {
         let file_str = file.to_str().unwrap();
         let other_str = other.to_str().unwrap();
         // Ignores the program name and the options
-        assert_eq!(paths_from_args(&args(&["mandarina", "--flag", file_str])), vec![file.clone()]);
+        assert_eq!(paths_from_args(&args(&["citrus", "--flag", file_str])), vec![file.clone()]);
         // Several paths, in the order received
         assert_eq!(
-            paths_from_args(&args(&["mandarina", other_str, file_str])),
+            paths_from_args(&args(&["citrus", other_str, file_str])),
             vec![other.clone(), file.clone()]
         );
         // No duplicates (also if one comes relative and another absolute)
         assert_eq!(
-            paths_from_args(&args(&["mandarina", file_str, other_str, file_str])),
+            paths_from_args(&args(&["citrus", file_str, other_str, file_str])),
             vec![file.clone(), other.clone()]
         );
         // One that does not exist in between is discarded and the others go on
         assert_eq!(
-            paths_from_args(&args(&["mandarina", file_str, "/no/existe/nada", "-x", other_str])),
+            paths_from_args(&args(&["citrus", file_str, "/no/existe/nada", "-x", other_str])),
             vec![file.clone(), other.clone()]
         );
         // A folder is also valid
-        assert_eq!(paths_from_args(&args(&["mandarina", dir.to_str().unwrap()])), vec![dir.clone()]);
+        assert_eq!(paths_from_args(&args(&["citrus", dir.to_str().unwrap()])), vec![dir.clone()]);
         // Relative path: it becomes absolute
         let old_dir = std::env::current_dir().unwrap();
         std::env::set_current_dir(&dir).unwrap();
-        let found = paths_from_args(&args(&["mandarina", "a.txt", file_str]));
+        let found = paths_from_args(&args(&["citrus", "a.txt", file_str]));
         std::env::set_current_dir(old_dir).unwrap();
         assert_eq!(found, vec![file.clone()]);
         // It does not exist, or there are no arguments
-        assert!(paths_from_args(&args(&["mandarina", "/no/existe/nada"])).is_empty());
-        assert!(paths_from_args(&args(&["mandarina"])).is_empty());
-        assert!(paths_from_args(&args(&["mandarina", "-x"])).is_empty());
+        assert!(paths_from_args(&args(&["citrus", "/no/existe/nada"])).is_empty());
+        assert!(paths_from_args(&args(&["citrus"])).is_empty());
+        assert!(paths_from_args(&args(&["citrus", "-x"])).is_empty());
         std::fs::remove_dir_all(&dir).unwrap();
     }
 
     #[test]
     fn informacion_de_archivo_y_carpeta() {
-        let dir = std::env::temp_dir().join(format!("mandarina_fi_{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("citrus_fi_{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(dir.join("sub")).unwrap();
         std::fs::write(dir.join("a.txt"), b"12345").unwrap();
         std::fs::write(dir.join("sub").join("b.txt"), b"123").unwrap();
         // The link to a large file outside the folder must not add up its content
-        let big = std::env::temp_dir().join(format!("mandarina_fi_big_{}", std::process::id()));
+        let big = std::env::temp_dir().join(format!("citrus_fi_big_{}", std::process::id()));
         std::fs::write(&big, vec![0u8; 100_000]).unwrap();
         #[cfg(unix)]
         std::os::unix::fs::symlink(&big, dir.join("enlace")).unwrap();

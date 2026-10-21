@@ -825,7 +825,7 @@ mod tests {
 
     // Temporary folder of each test
     fn test_dir(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("mandarina_tools_{}_{}", name, std::process::id()));
+        let dir = std::env::temp_dir().join(format!("citrus_tools_{}_{}", name, std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         dir
@@ -928,7 +928,7 @@ mod tests {
 
     #[test]
     fn salida_con_nombre_elegido() {
-        let dir = std::env::temp_dir().join(format!("mandarina_tools_nombre_{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("citrus_tools_nombre_{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         let src = dir.join("foto.JPG");
@@ -951,7 +951,7 @@ mod tests {
         if !tool_exists("magick") {
             return;
         }
-        let dir = std::env::temp_dir().join(format!("mandarina_tools_recorte_nombre_{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("citrus_tools_recorte_nombre_{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         let src = dir.join("-original.png");

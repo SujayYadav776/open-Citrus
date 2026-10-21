@@ -186,7 +186,7 @@ mod tests {
 
     // Temporary folder of each test
     fn test_dir(name: &str) -> std::path::PathBuf {
-        let dir = std::env::temp_dir().join(format!("mandarina_th_{}_{}", name, std::process::id()));
+        let dir = std::env::temp_dir().join(format!("citrus_th_{}_{}", name, std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         dir

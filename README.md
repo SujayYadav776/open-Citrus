@@ -7,10 +7,11 @@ nothing is uploaded.
 
 Citrus is the Windows port of [Mandarina](https://github.com/JorgeFTS/Mandarina), an MIT
 licensed project by JorgeFTS. The full upstream history is preserved in this repository's
-git log, and the Linux app remains the source of truth for behavior. This fork keeps the
-visible identity as "Citrus"; internal identifiers (binary `mandarina.exe`, config folder
-`mandarina`, bundle id `com.mandarina.converter`) still follow upstream on purpose, to
-keep merges from upstream clean while the port matures.
+git log, and the Linux app remains the source of truth for behavior. This fork uses a full
+Citrus identity: the binary is `citrus.exe`, the config folder is `citrus`, and the bundle
+id is `com.citrus.converter`. Upstream attribution is kept via the `repository` field and
+the MIT `LICENSE` copyright; the internal-name flip means future upstream merges must be
+replayed onto the Citrus names rather than applied verbatim.
 
 ## What it converts
 
@@ -52,7 +53,7 @@ powershell -File packaging\register-explorer.ps1          # add context menu ver
 powershell -File packaging\register-explorer.ps1 -Remove  # undo
 ```
 
-Set `CITRUS_BIN` to point the verbs at your installed `mandarina.exe` path. Alt+M works
+Set `CITRUS_BIN` to point the verbs at your installed `citrus.exe` path. Alt+M works
 while the app is running (it summons or hides the drop card at the cursor; drag files
 onto it).
 

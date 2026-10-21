@@ -1,10 +1,10 @@
 [package]
-name = "mandarina"
+name = "citrus"
 version = "0.1.0"
-description = "File converter for Linux with a floating radial wheel, launched from Nautilus. Converts images, audio, video, documents and more locally."
+description = "Citrus - a local file converter with a floating radial wheel for Windows, ported from Mandarina. Converts images, audio, video, documents and more locally."
 authors = ["JorgeFTS"]
 license = "MIT"
-keywords = ["converter", "ffmpeg", "tauri", "linux", "nautilus"]
+keywords = ["converter", "ffmpeg", "tauri", "windows"]
 categories = ["multimedia"]
 repository = "https://github.com/JorgeFTS/Mandarina"
 edition = "2024"
@@ -15,7 +15,7 @@ edition = "2024"
 # The `_lib` suffix may seem redundant but it is necessary
 # to make the lib name unique and wouldn't conflict with the bin name.
 # This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
-name = "mandarina_lib"
+name = "citrus_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]

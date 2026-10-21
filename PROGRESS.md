@@ -50,7 +50,7 @@ Last updated: 2026-10-21 (M5 close-out). Owner: QwenWork agent; keep this file c
 - [x] `packaging/register-explorer.ps1`: HKCU verbs for files (`*`), folder icons (`Directory`) and folder background (`%V`); verified registered; folder-arg launch renders the wheel. Multi-selection = one invocation per file (documented difference vs Nautilus).
 - [x] Alt+M global shortcut (tauri-plugin-global-shortcut 2): toggle hide/show, summons at cursor on any monitor; live-verified: visible -> hidden -> visible at (1200,700) offset (0,0). Wayland registration failure degrades to a warning.
 - [x] NSIS bundle target configured; installer produced by the M5 release build.
-- [ ] Decision still open (by design): flip internal names (citrus.exe, com.citrus.converter, CITRUS_CONFIG_DIR) after upstream merges settle.
+- [x] Internal-name flip DONE (this commit): package `mandarina`->`citrus`, lib `mandarina_lib`->`citrus_lib`, `mainBinaryName: "citrus"` (exe is now `citrus.exe`), identifier `com.citrus.converter`, config folder `mandarina`->`citrus`, env vars `MANDARINA_CONFIG_DIR/LANG/REAL/FORMAT` -> `CITRUS_*` (Citrus-only, no aliases), temp-dir prefixes, wheel.rs argv0, register-explorer.ps1 default path, README. Clean break (no config migration). Upstream attribution kept via `repository` URL + MIT LICENSE. Verified: `Compiling citrus`, 123/123 tests, citrus.exe launches (title "Citrus"), Cargo.lock renamed. Note: Linux deb packaging (install-nautilus/nemo.sh, /usr/share/mandarina) intentionally NOT renamed - port targets Windows.
 
 ### M5 - Verification & close-out - DONE
 - [x] Release build: `mandarina.exe` 4,976,640 B, SHA-256 `1b4dc2b9...a968cc88` (LTO; rustc 1.99.1 matches the compiler commit inferred from the upstream `.deb`).

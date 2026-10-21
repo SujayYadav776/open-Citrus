@@ -148,18 +148,12 @@ pub fn cursor_page_pos(app: AppHandle) -> Result<PagePoint, String> {
     Ok(PagePoint { x: px / scale, y: py / scale })
 }
 
-// The Windows equivalent of the old Nautilus scripts-accels: Alt+M summons the drop
-// card at the pointer, or hides it again when it is already up. Unlike the wheel flow
-// (primary monitor only, to stay bit-for-bit upstream) this new path may land on any
-// monitor, so it clamps to the one actually under the cursor.
-pub(crate) fn toggle_at_cursor(app: &AppHandle) {
+// Show the drop card at the pointer, clamped to whichever monitor the cursor is on
+// (unlike the wheel flow, which stays primary-only to match upstream bit-for-bit).
+pub(crate) fn show_at_cursor(app: &AppHandle) {
     let Some(window) = app.get_webview_window("main") else {
         return;
     };
-    if window.is_visible().unwrap_or(false) {
-        let _ = window.hide();
-        return;
-    }
     match window.cursor_position() {
         Ok(cursor) => {
             let under_cursor = app
@@ -199,6 +193,19 @@ pub(crate) fn toggle_at_cursor(app: &AppHandle) {
     }
     let _ = window.show();
     let _ = window.set_focus();
+}
+
+// The Windows equivalent of the old Nautilus scripts-accels: Alt+M summons the drop
+// card at the pointer, or hides it again when it is already up (it stays in the tray).
+pub(crate) fn toggle_at_cursor(app: &AppHandle) {
+    let Some(window) = app.get_webview_window("main") else {
+        return;
+    };
+    if window.is_visible().unwrap_or(false) {
+        let _ = window.hide();
+        return;
+    }
+    show_at_cursor(app);
 }
 
 // Puts the window at the logical size (width, height) at (x, y). The window manager ignores the

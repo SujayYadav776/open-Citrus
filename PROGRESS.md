@@ -85,6 +85,17 @@ DID the legitimate branding:
 - [ ] STILL OPEN: the published citrus-v0.1.0 release asset predates this fix (has the pre-resolver installer). Needs an asset refresh to ship the fix (gated on user approval).
 - [ ] Ghostscript (PDF-compress tool) still not installed / not on winget - separate known limitation.
 
+## Close-behavior fix (user-reported: "can't close the app after using it")
+
+Root cause: in free mode (no-args launch or Alt+M), `salir()` returned to the drop card instead of quitting, Esc did nothing on that card, there was no idle auto-quit, no taskbar entry (skipTaskbar) and no tray - so the app could only be killed via Task Manager; Alt+M only hid it, leaving it unreachable.
+
+- [x] System tray (`spawn` of tray in lib.rs setup, tauri `tray-icon` feature): "Open Citrus" summons the card at the cursor, "Quit Citrus" exits. App stays resident in the tray.
+- [x] Close-to-tray: `on_window_event` turns CloseRequested (Alt+F4) into hide + prevent_close, so the window is never orphaned - it goes to the tray.
+- [x] Esc on the free-mode drop card now quits (main.js alPulsarTecla); wheel/editor/settings behavior unchanged.
+- [x] wheel.rs: extracted `show_at_cursor` (used by tray Open and the Alt+M toggle); `toggle_at_cursor` hides to tray when visible.
+- [x] Verified on the debug build: Esc quits (alive True->False); Alt+F4 keeps the process alive (hidden to tray); 123/123 tests green.
+- [ ] Release + installer rebuilt with these changes (in progress); reinstall pending. The published citrus-v0.1.0 asset is now stale twice over (pre-converter-fix AND pre-tray) - refresh gated on user approval.
+
 ## Known unknowns / risks
 - Binary-to-source build equivalence: not established (no decompile needed; bounded by choice).
 - WebView2 transparency edges at non-100% DPI (probe in M3).

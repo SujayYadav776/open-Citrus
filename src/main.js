@@ -1082,7 +1082,13 @@ function alHacerClic(e) {
 }
 
 function alPulsarTecla(e) {
-  if (e.key !== "Escape" || vistaActual === "convirtiendo" || vistaActual === "inicio" || vistaActual === "editor" || vistaActual === "ajustes") return;
+  if (e.key !== "Escape") return;
+  // On the free-mode drop card there is nothing to go "back" to, so Esc quits the app.
+  if (vistaActual === "inicio") {
+    if (modoLibre && !demo) api.quit();
+    return;
+  }
+  if (vistaActual === "convirtiendo" || vistaActual === "editor" || vistaActual === "ajustes") return;
   if (vistaActual === "rueda" && nivel !== "conversion") volverNivel();
   else salir();
 }

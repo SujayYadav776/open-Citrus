@@ -22,13 +22,45 @@ pub fn run() {
                 .build(),
         )
         .setup(|app| {
+            use tauri::menu::{Menu, MenuItem};
+            use tauri::tray::TrayIconBuilder;
             use tauri_plugin_global_shortcut::GlobalShortcutExt;
             // The equivalent of the Nautilus scripts-accels. Wayland will simply refuse to
             // register; the app keeps working from the file-manager entry either way.
             if let Err(e) = app.global_shortcut().register("Alt+M") {
                 eprintln!("citrus: Alt+M not available: {e}");
             }
+            // A tray icon so the always-borderless, taskbar-skipping app is always
+            // reachable: Open summons the card at the cursor, Quit ends the process.
+            let handle = app.handle();
+            let open = MenuItem::with_id(handle, "open", "Open Citrus", true, None::<&str>)?;
+            let quit = MenuItem::with_id(handle, "quit", "Quit Citrus", true, None::<&str>)?;
+            let menu = Menu::with_items(handle, &[&open, &quit])?;
+            let mut builder = TrayIconBuilder::with_id("citrus-tray")
+                .menu(&menu)
+                .tooltip("Citrus")
+                .show_menu_on_left_click(true)
+                .on_menu_event(|app, event| match event.id.as_ref() {
+                    "open" => {
+                        let app = app.clone();
+                        std::thread::spawn(move || wheel::show_at_cursor(&app));
+                    }
+                    "quit" => app.exit(0),
+                    _ => {}
+                });
+            if let Some(icon) = handle.default_window_icon() {
+                builder = builder.icon(icon.clone());
+            }
+            builder.build(handle)?;
             Ok(())
+        })
+        // Closing the window (Alt+F4, etc.) hides it to the tray rather than quitting, so
+        // there is always a way back; the tray Quit (or Esc on the drop card) truly exits.
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                let _ = window.hide();
+                api.prevent_close();
+            }
         })
         .invoke_handler(tauri::generate_handler![
             lang::get_language,

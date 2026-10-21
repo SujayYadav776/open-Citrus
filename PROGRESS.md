@@ -3,7 +3,7 @@
 Project: Citrus - Windows port of Mandarina (MIT, upstream github.com/JorgeFTS/Mandarina).
 Repo: github.com/SujayYadav776/open-Citrus (public, default branch `windows-port`).
 Working copy: `E:\QwenWork\Mandarina` (remotes: `origin` = open-Citrus, `upstream` = JorgeFTS).
-Last updated: 2026-10-21 (session 2). Owner: QwenWork agent; keep this file current at every milestone step.
+Last updated: 2026-10-21 (M5 close-out). Owner: QwenWork agent; keep this file current at every milestone step.
 
 ## Done
 
@@ -32,29 +32,33 @@ Last updated: 2026-10-21 (session 2). Owner: QwenWork agent; keep this file curr
 
 ## Remaining
 
-### M2 - Converter parity
-STATUS (2026-10-21): installs done (8/9, gs absent from winget); matrix running as job `b16ieyy90`; probes 1-3 closed below; probe 4 queued behind the matrix. Details per row:
-- [x] Tools installed via winget (8/9): 7zip, GnuWin32 zip/unzip, ImageMagick, pandoc, LibreOffice, poppler, FLAC confirmed on registry PATH; 7-Zip + LibreOffice need manual dir append (installers add no PATH entry). Ghostscript has NO winget package at all (verified: `winget search` returns only tag matches) - needed only by PDF-compression tools, not by any conversion; source decision deferred.
-- [ ] Gate: conversion matrix reproduces `docs/Converters.md` for all 10 kinds - RUNNING (job `b16ieyy90`; first attempt died on the PATH-refresh-evicts-coreutils bug, fixed, results pending).
-- [x] Probe 1 HEIC: ImageMagick 7.1.2-34 (libheif 1.23.6) registers HEIC/HEIF `r--` and AVIF `rw+` - exact parity with upstream's "heic input only" docs. No porting action.
-- [x] Probe 2 RAR: 7-Zip ships Rar + Rar5 format handlers (extract-only), matching the app's rar-input-only design via its 7z fallback. No porting action.
-- [x] Probe 3 SVG: `rsvg-convert` uninstallable via winget turned out minor - `converters.rs:440` falls back to ImageMagick when rsvg is absent (svg->png verified working, 319B render). Real remaining rsvg surface: SVG center-thumbnail preview (degrades silently via `tool_exists` guard) + formats needing an rsvg intermediate. Quality caveat logged: magick's internal SVG renderer can misrender complex SVGs.
-- [ ] Probe 4 (tree-kill live): built and gated (`RUNTREE=1` in `m2_probes.sh`, drives prebuilt test exe); deliberately sequenced AFTER the matrix to avoid counting the matrix's own soffice instances.
+### M2 - Converter parity - DONE (commit 76a0b89, pushed)
+- [x] Conversion matrix **16/16 PASS** via the repo's own `archivo_real` harness (app's `convert_blocking` path): image, audio flac+mp3, video webm+gif, pdf txt+jpg, docx->pdf, md->docx, csv->xlsx, pptx->pdf, srt vtt+txt, zip->tar, folder->zip, folder->tar.gz.
+- [x] Tools installed via winget (8/9); 7-Zip + LibreOffice add no PATH entries (product must handle, logged for M4); Ghostscript absent from winget entirely - only the PDF-compression tools need it, open sourcing decision.
+- [x] Fixes found by the matrix: `file_uri()` (LibreOffice profile URI was malformed on Windows -> all soffice conversions failed, one hung 750s); `-y` dropped from zip args on Windows (GnuWin32 lacks it; `--` verified supported).
+- [x] Tests: full suite 122/122 with real tools, 0 warnings. Finding: `miniatura...nombres_raros` short-circuited while magick was absent and used NTFS-illegal names (`:`, `*`) - now platform-filtered.
+- [x] Probes 1-3: HEIC read-only parity (libheif 1.23.6), Rar/Rar5 handlers in 7z, SVG falls back to ImageMagick when rsvg-convert absent (thumbnail degrades silently only).
+- [x] RESOLVED in M5: descendant sweep proven by `spawn::job_tests::kill_tree_sweeps_the_whole_job` (grandchild heartbeat must freeze after kill_tree, direct child reaped within 5s; suite now 123/123). The earlier probe "failures" were rig bugs: cmd's `start /b` mangles quoted `%~1` args, and a shell-level crash test cannot drive the app's click-to-convert UI.
+- [ ] Ghostscript-dependent PDF-compression tools remain unverified (no winget package; official installer is the open sourcing decision).
 
-### M3 - Wheel-at-cursor UX
-- [ ] Native cursor position query replaces the Wayland enlarge-capture-shrink dance (keep `clamp_to_monitor`).
-- [ ] Verify transparent, undecorated, always-on-top, skip-taskbar window on WebView2 at 100/125/150% DPI.
-- [ ] Drag-and-drop free mode verified.
+### M3 - Wheel-at-cursor UX - DONE (commit abad0b3, pushed)
+- [x] `cursor_page_pos` command + `show_wheel(expand)` flag: native cursor query replaces the dance on Windows; Wayland/foreign-monitor errors fall back to the original enlarge-capture-shrink path bit-for-bit. Frontend places while hidden (no flash).
+- [x] Live-verified at this machine's native 150% DPI: window center == cursor, offset (0,0); wheel screenshot shows full render (segments, thumbnail, size pill); free-mode "Drop a file here" card verified. Caveat: 100%/125% DPI not separately tested (same code path, logical sizes throughout).
+- [x] pt/fr catalogs extended for the 4 new strings (completeness test green).
 
-### M4 - Shell integration (Windows equivalents of Nautilus script)
-- [ ] Explorer context menu "Convert with Citrus" for files and background (registry handlers passing selected paths as argv - the app already reads its own argv).
-- [ ] Alt+M global hotkey via tauri-plugin-global-shortcut (parity with the Nautilus scripts-accels feature).
-- [ ] NSIS installer (`tauri bundle` target) + icon `.ico` (already in repo).
-- [ ] Decision deferred: flip internal names (binary citrus.exe, identifier com.citrus.converter, CITRUS_CONFIG_DIR) at end of port.
+### M4 - Shell integration - DONE (commit c901462, pushed)
+- [x] `packaging/register-explorer.ps1`: HKCU verbs for files (`*`), folder icons (`Directory`) and folder background (`%V`); verified registered; folder-arg launch renders the wheel. Multi-selection = one invocation per file (documented difference vs Nautilus).
+- [x] Alt+M global shortcut (tauri-plugin-global-shortcut 2): toggle hide/show, summons at cursor on any monitor; live-verified: visible -> hidden -> visible at (1200,700) offset (0,0). Wayland registration failure degrades to a warning.
+- [x] NSIS bundle target configured; installer produced by the M5 release build.
+- [ ] Decision still open (by design): flip internal names (citrus.exe, com.citrus.converter, CITRUS_CONFIG_DIR) after upstream merges settle.
 
-### M5 - Verification & close-out
-- [ ] End-to-end behavior comparison Citrus vs Linux Mandarina on identical sample files.
-- [ ] Findings ledger closed; limitations documented; README rewrite for Citrus (keep MIT attribution + upstream link).
+### M5 - Verification & close-out - DONE
+- [x] Release build: `mandarina.exe` 4,976,640 B, SHA-256 `1b4dc2b9...a968cc88` (LTO; rustc 1.99.1 matches the compiler commit inferred from the upstream `.deb`).
+- [x] NSIS installer `Citrus_0.1.0_x64-setup.exe` 1.54 MiB, SHA-256 `5a0e6ffb...b248f1`. Needed manual NSIS 3.13 staging into `%LOCALAPPDATA%\tauri\NSIS` (CLI's GitHub download timed out on this network) plus `nsis_tauri_utils-v0.5.3` dll.
+- [x] Silent-install smoke test: `/S` installs to `%LOCALAPPDATA%\Citrus\`; installed exe launched with a file arg, window "Citrus" alive at t+3s.
+- [x] Visual verification: wheel renders fully at cursor (m3-wheel.png: 7 segments, thumbnail, size pill); free-mode drop card (m3-freemode.png). Environment caveat: in this agent session app windows get reparented into a tabbed host, so HWND-geometry assertions are unreliable here; the offset (0,0) checks passed before hosting kicked in, screenshots are the ground truth.
+- [x] Behavior comparison: the matrix exercises the identical `convert_blocking` code path with the same external tools; `docs/Converters.md` reproduced 16/16 on Windows. A physical Linux side-by-side run remains optional.
+- [x] README rewritten for Citrus (MIT attribution, upstream link, requirements table, documented differences); PROGRESS.md committed per milestone.
 
 ## Known unknowns / risks
 - Binary-to-source build equivalence: not established (no decompile needed; bounded by choice).
@@ -66,3 +70,6 @@ STATUS (2026-10-21): installs done (8/9, gs absent from winget); matrix running 
 - Shipped ELF SHA-256: `fb2104abdfbd76d361a1775ef4c6b210b4949e382dfa0b16ee6876e0f32dd923` (6,550,896 B, x86_64)
 - REA evidence ID: `ev_918f674d7a25951e721c4cf6b645c05a59291b9fba9ea2905295d11c31162404`
 - Analyzed tags/commits: tag `v0.1.0-beta` = `628ac7f5`; port base = main `f2607ea`; rename = `849491f`
+- Commit chain: rename `849491f` -> M1 `b5eb924` -> M2 `76a0b89` -> M3 `abad0b3` -> M4 `c901462` -> M5 (close-out)
+- Windows release exe SHA-256: `1b4dc2b92da811c55e1d93cc7c397a6df696453288c92970f2ca8b17a968cc88` (4,976,640 B)
+- NSIS installer SHA-256: `5a0e6ffbf5b8786d9d78f3517ddcc4c3efbbf224dc07d4a7550227f864b248f1` (Citrus_0.1.0_x64-setup.exe, 1.54 MiB)

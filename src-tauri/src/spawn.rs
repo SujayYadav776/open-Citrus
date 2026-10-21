@@ -208,11 +208,72 @@ pub(crate) fn locale_fallback(name: &str) -> Option<String> {
     (name == "LANG").then(system_locale).flatten()
 }
 
-// Note: the direct-child cancel path (TerminateJobObject / SIGKILL group) is exercised
-// by converters::tests and tools::tests cancel cases, which pass on Windows. That the
-// job also sweeps grandchildren is documented Windows behavior (every member of the job
-// is terminated), but a rigorous live descendant probe was flaky as a shell rig and is
-// deferred to the M5 side-by-side comparison rather than shipped as an unreliable test.
+// The cancel path (kill_tree) is exercised by converters/tools tests, but those use the
+// Unix group-kill or short-lived children. This Windows test proves the Job Object
+// reaches DESCENDANTS: parent.bat idles while a `start /b` grandchild appends to a
+// heartbeat file. After kill_tree the direct child must be reaped AND the heartbeat
+// frozen. If the heartbeat keeps growing, the job is not covering descendants.
+#[cfg(all(test, windows))]
+mod job_tests {
+    use super::*;
+    use std::time::{Duration, Instant};
+
+    #[test]
+    fn kill_tree_sweeps_the_whole_job() {
+        let dir = std::env::temp_dir().join(format!("citrus_job_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let hb = dir.join("hb.txt");
+        let gc = dir.join("gc.bat");
+        let parent = dir.join("parent.bat");
+        std::fs::write(
+            &gc,
+            "@echo off\r\n:loop\r\necho x>>\"%~1\"\r\nping -n 2 127.0.0.1 >nul\r\ngoto loop\r\n",
+        )
+        .unwrap();
+        std::fs::write(
+            &parent,
+            "@echo off\r\nstart \"\" /b %~1 %~2\r\nping -n 600 127.0.0.1 >nul\r\n",
+        )
+        .unwrap();
+
+        let mut command = Command::new("cmd.exe");
+        command
+            .args(["/c", "parent.bat", "gc.bat", "hb.txt"])
+            .current_dir(&dir)
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null());
+        let mut proc = spawn_killing_tree(command).expect("spawn");
+
+        let deadline = Instant::now() + Duration::from_secs(20);
+        while std::fs::metadata(&hb).map(|m| m.len()).unwrap_or(0) == 0 {
+            assert!(Instant::now() < deadline, "grandchild never started: inconclusive");
+            std::thread::sleep(Duration::from_millis(100));
+        }
+
+        kill_tree(&proc);
+        // bounded reap check: if the job never attached, the parent idles for 600s and
+        // this must fail fast instead of hanging the suite
+        let reaped = loop {
+            match proc.try_wait() {
+                Ok(Some(status)) => break Some(status),
+                Ok(None) => std::thread::sleep(Duration::from_millis(100)),
+                Err(_) => break None,
+            }
+            if Instant::now() > deadline {
+                break None;
+            }
+        };
+        assert!(reaped.is_some(), "direct child not reaped after kill_tree (job missing?)");
+
+        std::thread::sleep(Duration::from_millis(800));
+        let before = std::fs::metadata(&hb).map(|m| m.len()).unwrap_or(0);
+        std::thread::sleep(Duration::from_millis(3000));
+        let after = std::fs::metadata(&hb).map(|m| m.len()).unwrap_or(0);
+        let _ = std::fs::remove_dir_all(&dir);
+        assert_eq!(before, after, "grandchild survived kill_tree: heartbeat grew {before}->{after}");
+    }
+}
 
 // The install hint that goes with a missing tool: the apt line (upstream) on Unix, a
 // winget equivalent where a well-known package exists on Windows.

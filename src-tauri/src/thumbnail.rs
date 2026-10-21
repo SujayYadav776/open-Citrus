@@ -234,9 +234,19 @@ mod tests {
             return;
         }
         let dir = test_dir("imagen");
+        // NTFS forbids : * ? " < > | \ in filenames, so magick cannot create those
+        // names on Windows; skip them there (all are legal on Unix, unchanged behavior).
+        let legal = |name: &str| -> bool {
+            !cfg!(windows) || !name.chars().any(|c| matches!(c, ':' | '*' | '?' | '"' | '<' | '>' | '|' | '\\'))
+        };
+        let mut created = 0;
         for name in ["-x.png", "a[1].png", "[0].png", "a [0] b.png", "a:b.png", "a*.png", "x[2x2].png"] {
+            if !legal(name) {
+                continue;
+            }
             let png = dir.join(name);
             run("magick", &["-size", "600x300", "xc:red", png.to_str().unwrap()]);
+            created += 1;
             let url = thumbnail_blocking(png.to_str().unwrap()).unwrap_or_else(|e| panic!("{name}: {e}"));
             assert_jpeg(&url);
         }
@@ -245,7 +255,7 @@ mod tests {
         run("magick", &["-size", "300x300", "xc:red", "-size", "300x300", "xc:blue", "-delay", "5", gif.to_str().unwrap()]);
         assert_jpeg(&thumbnail_blocking(gif.to_str().unwrap()).unwrap());
         // Nothing is written next to the original
-        assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 8);
+        assert_eq!(std::fs::read_dir(&dir).unwrap().count(), created + 1);
         std::fs::remove_dir_all(&dir).unwrap();
     }
 

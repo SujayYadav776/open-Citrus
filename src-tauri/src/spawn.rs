@@ -46,7 +46,10 @@ pub(crate) fn spawn_killing_tree(mut command: Command) -> Result<Proc, std::io::
         // fall back to killing just the direct child.
         match unsafe { win::attach_job_and_resume(&child) } {
             Ok(job) => Ok(Proc { child, _job: job }),
-            Err(_) => {
+            Err(e) => {
+                if std::env::var_os("CITRUS_DEBUG").is_some() {
+                    eprintln!("[citrus] job attach failed, kill degrades to direct child: {e:?}");
+                }
                 win::resume_all_threads(&child);
                 Ok(Proc { child, _job: JobHandle::none() })
             }
@@ -171,6 +174,8 @@ mod win {
     }
 
     // "es-ES", "en-US"... or nothing (then the env chain decides, as on Unix).
+    // Reached only via locale_fallback, whose caller is #[cfg(not(test))].
+    #[cfg_attr(test, allow(dead_code))]
     pub fn system_locale() -> Option<String> {
         const MAX: usize = 85; // LOCALE_NAME_MAX_LENGTH
         let mut buf = [0u16; MAX];
@@ -186,6 +191,8 @@ mod win {
 #[cfg(windows)]
 use win::system_locale;
 #[cfg(not(windows))]
+// Only reached from lang::detect_now, which is #[cfg(not(test))]
+#[cfg_attr(test, allow(dead_code))]
 fn system_locale() -> Option<String> {
     None
 }
@@ -195,9 +202,17 @@ pub(crate) use win::JobHandle;
 
 // Locale name ("es-ES") for the language detection fallback, when the whole env chain is
 // empty (the usual case on Windows). None on Unix, where LANG & co already decide.
+// The only caller (lang::detect_now) is #[cfg(not(test))], so it is dead in the test build.
+#[cfg_attr(test, allow(dead_code))]
 pub(crate) fn locale_fallback(name: &str) -> Option<String> {
     (name == "LANG").then(system_locale).flatten()
 }
+
+// Note: the direct-child cancel path (TerminateJobObject / SIGKILL group) is exercised
+// by converters::tests and tools::tests cancel cases, which pass on Windows. That the
+// job also sweeps grandchildren is documented Windows behavior (every member of the job
+// is terminated), but a rigorous live descendant probe was flaky as a shell rig and is
+// deferred to the M5 side-by-side comparison rather than shipped as an unreliable test.
 
 // The install hint that goes with a missing tool: the apt line (upstream) on Unix, a
 // winget equivalent where a well-known package exists on Windows.

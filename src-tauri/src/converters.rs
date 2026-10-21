@@ -385,6 +385,17 @@ pub(crate) fn st(path: &Path) -> String {
     path.to_string_lossy().to_string()
 }
 
+// file:// URI for a path: Unix needs file:///abs; Windows must get forward slashes and
+// the third slash (file:///C:/...), otherwise LibreOffice rejects the profile location
+pub(crate) fn file_uri(path: &Path) -> String {
+    let text = path.to_string_lossy().replace("\\", "/");
+    if text.starts_with('/') {
+        format!("file://{text}")
+    } else {
+        format!("file:///{text}")
+    }
+}
+
 // Temporary folder that deletes itself when it goes out of scope, also if there was an error
 pub(crate) struct TempDir(PathBuf);
 
@@ -600,7 +611,7 @@ fn convert_pandoc(src: &Path, out: &Path, target: &str) -> Result<(), String> {
 fn libreoffice(src: &Path, tmp: &Path, convert_to: &str, infilter: Option<&str>) -> Result<PathBuf, String> {
     let tool = need(&["soffice", "libreoffice"], &install_hint("libreoffice"))?;
     let outdir = new_subdir(tmp)?;
-    let profile = format!("-env:UserInstallation=file://{}", st(&tmp.join("profile")));
+    let profile = format!("-env:UserInstallation={}", file_uri(&tmp.join("profile")));
     let infilter = infilter.map(|f| format!("--infilter={f}"));
     let (outdir_str, src_str) = (st(&outdir), st(src));
     let mut args = vec![profile.as_str(), "--headless"];
@@ -847,7 +858,12 @@ fn convert_archive(src: &Path, out: &Path, target: &str) -> Result<(), String> {
         // -y stores symbolic links as links, without following them outside the folder
         "zip" => {
             need(&["zip"], &install_hint("zip"))?;
-            run_in("zip", &["-r", "-q", "-y", &out, "."], Some(&files))
+            let mut args = vec!["-r", "-q"];
+            if !cfg!(windows) {
+                args.push("-y"); // GnuWin32 zip does not know -y (store links as links)
+            }
+            args.extend([&out, "."]);
+            run_in("zip", &args, Some(&files))
         }
         _ => {
             need(&["tar"], &install_hint("tar"))?;
@@ -867,7 +883,12 @@ fn convert_folder(src: &Path, out: &Path, target: &str) -> Result<(), String> {
         // -y stores symbolic links as links, without following them outside the folder
         "zip" => {
             need(&["zip"], &install_hint("zip"))?;
-            run_in("zip", &["-r", "-q", "-y", &out, "--", &name], Some(parent))
+            let mut args = vec!["-r", "-q"];
+            if !cfg!(windows) {
+                args.push("-y"); // GnuWin32 zip does not know -y (store links as links)
+            }
+            args.extend([&out, "--", &name]);
+            run_in("zip", &args, Some(parent))
         }
         _ => {
             need(&["tar"], &install_hint("tar"))?;

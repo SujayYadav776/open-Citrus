@@ -76,6 +76,15 @@ DID the legitimate branding:
 - [x] Rebuilt: 123/123 tests, installer 1,688,844 B (1.61 MiB) with Citrus icon + bundled license; clean reinstall verified.
 - [ ] The already-published citrus-v0.1.0 release still points at the OLD installer (pre-branding). Refreshing that asset or cutting a new tag is a separate gated action.
 
+## Bugfix round (user-reported: context menu missing + features not working)
+
+- [x] Context menu dead: registry verbs still pointed at `...target\debug\mandarina.exe` (deleted by the rename). Re-registered all three verbs (files `%1`, folder `%1`, background `%V`) to the installed `C:\Users\ADMIN\AppData\Local\Citrus\citrus.exe`, with MUIVerb + Icon; verified in the registry; Explorer restarted. Note: on Windows 11 classic verbs appear under "Show more options".
+- [x] Features silently missing: root cause = LibreOffice and 7-Zip installers do NOT add to PATH, so an Explorer-launched app couldn't find soffice/7z and dropped every document/presentation/spreadsheet + rar/zip-fallback conversion. The earlier matrix only passed because test scripts manually appended those dirs. Fix in `spawn.rs`: `find_program`/`resolve_program` check PATH first (preserving bare-name behavior so dev-shell MSYS binaries like /usr/bin/tar are never swapped in), then known install dirs (Program Files\LibreOffice\program, Program Files\7-Zip). `tool_exists` + `run_progress` + `capture_with` wired to it. Commit `6f9b9a5`.
+- [x] Test fix: csv->tsv now normalizes CRLF (LibreOffice writes CRLF on Windows; valid TSV) so the assertion is cross-platform. 123/123 green; the LibreOffice test runs and passes with soffice OFF PATH (the real Explorer condition) - that is the proof.
+- [x] Rebuilt release + installer with the fix; reinstalled to %LOCALAPPDATA%\Citrus.
+- [ ] STILL OPEN: the published citrus-v0.1.0 release asset predates this fix (has the pre-resolver installer). Needs an asset refresh to ship the fix (gated on user approval).
+- [ ] Ghostscript (PDF-compress tool) still not installed / not on winget - separate known limitation.
+
 ## Known unknowns / risks
 - Binary-to-source build equivalence: not established (no decompile needed; bounded by choice).
 - WebView2 transparency edges at non-100% DPI (probe in M3).

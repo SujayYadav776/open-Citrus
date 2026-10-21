@@ -10,6 +10,26 @@ mod wheel;
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(
+            tauri_plugin_global_shortcut::Builder::new()
+                .with_handler(|app, _shortcut, event| {
+                    if event.state() == tauri_plugin_global_shortcut::ShortcutState::Pressed {
+                        // resize_and_move blocks ~200 ms on purpose; keep the event loop free
+                        let app = app.clone();
+                        std::thread::spawn(move || wheel::toggle_at_cursor(&app));
+                    }
+                })
+                .build(),
+        )
+        .setup(|app| {
+            use tauri_plugin_global_shortcut::GlobalShortcutExt;
+            // The equivalent of the Nautilus scripts-accels. Wayland will simply refuse to
+            // register; the app keeps working from the file-manager entry either way.
+            if let Err(e) = app.global_shortcut().register("Alt+M") {
+                eprintln!("citrus: Alt+M not available: {e}");
+            }
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             lang::get_language,
             config::get_prefs,

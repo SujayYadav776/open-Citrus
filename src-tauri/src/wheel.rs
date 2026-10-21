@@ -148,6 +148,59 @@ pub fn cursor_page_pos(app: AppHandle) -> Result<PagePoint, String> {
     Ok(PagePoint { x: px / scale, y: py / scale })
 }
 
+// The Windows equivalent of the old Nautilus scripts-accels: Alt+M summons the drop
+// card at the pointer, or hides it again when it is already up. Unlike the wheel flow
+// (primary monitor only, to stay bit-for-bit upstream) this new path may land on any
+// monitor, so it clamps to the one actually under the cursor.
+pub(crate) fn toggle_at_cursor(app: &AppHandle) {
+    let Some(window) = app.get_webview_window("main") else {
+        return;
+    };
+    if window.is_visible().unwrap_or(false) {
+        let _ = window.hide();
+        return;
+    }
+    match window.cursor_position() {
+        Ok(cursor) => {
+            let under_cursor = app
+                .available_monitors()
+                .ok()
+                .and_then(|mons| {
+                    mons.into_iter().find(|m| {
+                        let (p, s) = (m.position(), m.size());
+                        cursor.x >= p.x as f64
+                            && cursor.x < (p.x + s.width as i32) as f64
+                            && cursor.y >= p.y as f64
+                            && cursor.y < (p.y + s.height as i32) as f64
+                    })
+                })
+                .or_else(|| window.primary_monitor().ok().flatten());
+            if let Some(monitor) = under_cursor {
+                let scale = monitor.scale_factor();
+                let (mpos, msize) = (monitor.position(), monitor.size());
+                let side = (460.0 * scale).round() as i32;
+                let (wx, wy) = clamp_to_monitor(
+                    cursor.x.round() as i32,
+                    cursor.y.round() as i32,
+                    side,
+                    side,
+                    mpos.x,
+                    mpos.y,
+                    msize.width as i32,
+                    msize.height as i32,
+                );
+                resize_and_move(&window, 460.0, 460.0, wx, wy);
+            }
+        }
+        // Wayland cannot read the pointer: the card simply appears in the center
+        Err(_) => {
+            let _ = window.center();
+        }
+    }
+    let _ = window.show();
+    let _ = window.set_focus();
+}
+
 // Puts the window at the logical size (width, height) at (x, y). The window manager ignores the
 // move if it arrives right after the resize, so it waits a little and repeats the position.
 // It is safe to block here: async commands do not run on the main thread.

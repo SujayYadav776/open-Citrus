@@ -29,7 +29,7 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["deb"],
+    "targets": ["deb", "nsis"],
     "category": "Utility",
     "shortDescription": "File converter with a floating radial wheel",
     "longDescription": "Citrus converts files locally (images, audio, video, documents, PDF, spreadsheets, subtitles and archives) from a radial wheel that appears next to the cursor, and offers tools such as compress, trim, rotate and resize. It uses ffmpeg, ImageMagick, pandoc, LibreOffice, poppler and ghostscript.",

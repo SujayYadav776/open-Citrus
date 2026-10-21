@@ -14,7 +14,7 @@ Converts `path` to `format` (one of those returned by `get_targets`). The output
 
 ### Floating wheel commands
 
-The app is launched in two ways: `mandarina /path/file` (from the Nautilus right click) or with no arguments (a small window onto which a file is dragged). The window is transparent, borderless and always on top; the wheel is drawn in the center and the transparent area around it closes the app when clicked.
+The app is launched in two ways: `citrus /path/file` (from the Nautilus right click) or with no arguments (a small window onto which a file is dragged). The window is transparent, borderless and always on top; the wheel is drawn in the center and the transparent area around it closes the app when clicked.
 
 - `initial_paths() -> Vec<String>`: every command-line argument that does not start with `-`, as absolute paths, that exists, without duplicates and in the order received. An empty list if there is none.
 - `file_info(path: String) -> Result<FileInfo, String>` with `FileInfo { name: String, size: u64, is_dir: bool }` (`size` in bytes; for folders, a recursive sum).
@@ -34,7 +34,7 @@ The app is launched in two ways: `mandarina /path/file` (from the Nautilus right
 
 ### Several files at once
 
-The app receives all the selected files (`mandarina path1 path2 ...`). The single-file commands (`get_targets`, `convert`, `file_info`, `thumbnail`) stay the same; these are added:
+The app receives all the selected files (`citrus path1 path2 ...`). The single-file commands (`get_targets`, `convert`, `file_info`, `thumbnail`) stay the same; these are added:
 
 - `get_targets_many(paths: Vec<String>) -> Vec<String>`: formats for the wheel. Only the files of a supported type count (the others are ignored here and will show up as failed when converting). A format is offered if **all** those files support it according to the target list of their type (counting the format itself) and **not all** of them are already in that format. Order: that of the list of the first supported file. With a single file it returns the same as `get_targets`. If none of the files is archive-type, `zip` is always offered (see [[Converters]]). An empty list if no file is supported or there is no format in common.
 - `convert_many(paths: Vec<String>, format: String) -> Result<BatchResult, String>` (async). It converts one by one, each result next to its original (same naming and page-folder rules as `convert`). Those already in that format are skipped. If a file fails, it goes on with the rest. `BatchResult { outputs: Vec<String>, skipped: Vec<String> (names), failed: Vec<{ name: String, error: String }> }`. It only gives `Err` if the list is empty or if it is cancelled (`[cancelled]`; the results already created are kept). A file of an unsupported type goes into `failed` with "Unsupported file type". With `zip`, `tar` or `tar.gz` and no archives among the files, all of them are packed into **one** archive (`pack`).

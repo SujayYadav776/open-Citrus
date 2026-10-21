@@ -2,7 +2,7 @@
 name = "citrus"
 version = "0.1.0"
 description = "Citrus - a local file converter with a floating radial wheel for Windows, ported from Mandarina. Converts images, audio, video, documents and more locally."
-authors = ["JorgeFTS"]
+authors = ["JorgeFTS", "SujayYadav776"]
 license = "MIT"
 keywords = ["converter", "ffmpeg", "tauri", "windows"]
 categories = ["multimedia"]

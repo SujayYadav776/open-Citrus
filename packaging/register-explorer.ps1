@@ -6,7 +6,10 @@
 #   CITRUS_BIN overrides the exe path (defaults to the debug build in this working copy).
 param([switch]$Remove)
 
-$exe = if ($env:CITRUS_BIN) { $env:CITRUS_BIN } else { "E:\QwenWork\Mandarina\src-tauri\target\debug\citrus.exe" }
+$root = Split-Path -Parent $PSScriptRoot
+$release = Join-Path $root "src-tauri\target\release\citrus.exe"
+$debug = Join-Path $root "src-tauri\target\debug\citrus.exe"
+$exe = if ($env:CITRUS_BIN) { $env:CITRUS_BIN } elseif (Test-Path $release) { $release } elseif (Test-Path $debug) { $debug } else { $release }
 $verb = "Citrus.Convert"
 
 $locations = @(

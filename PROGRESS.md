@@ -62,6 +62,20 @@ Last updated: 2026-10-21 (M5 close-out). Owner: QwenWork agent; keep this file c
 - [x] README rewritten for Citrus (MIT attribution, upstream link, requirements table, documented differences); PROGRESS.md committed per milestone.
 - [x] GitHub release PUBLISHED (user-approved): annotated tag `citrus-v0.1.0` -> release https://github.com/SujayYadav776/open-Citrus/releases/tag/citrus-v0.1.0 (draft=false, prerelease=false), body = CHANGELOG v0.1.0, installer attached and publicly downloadable: https://github.com/SujayYadav776/open-Citrus/releases/download/citrus-v0.1.0/Citrus_0.1.0_x64-setup.exe (1,610,713 B, HTTP 200).
 
+## Post-release branding pass (DONE)
+
+User asked to remove all Mandarina traces and the original author. DECLINED the parts that
+would strip MIT copyright/attribution (that voids the license and misrepresents the work);
+DID the legitimate branding:
+
+- [x] Fresh Citrus icon (generated citrus.png, `tauri icon` regenerated all sizes; old mandarina.png/.svg removed).
+- [x] NOTICE + AUTHORS files: dual copyright (JorgeFTS for Mandarina, SujayYadav776 for the port), both MIT; LICENSE unchanged (still "Copyright (c) 2026 JorgeFTS").
+- [x] Cargo.toml authors now ["JorgeFTS", "SujayYadav776"]; package.json name -> citrus.
+- [x] LICENSE + NOTICE + AUTHORS now bundled as Tauri resources -> verified installed under %LOCALAPPDATA%\Citrus (closes the MIT "notice must travel with copies" gap).
+- [x] Finished the rename everywhere cosmetic: Linux deb paths -> /usr/share/citrus, nautilus/nemo scripts + citrus-script, MANDARINA_* -> CITRUS_*, "Convert with Mandarina" -> "Convert with Citrus", docs/*.md + CONTRIBUTING.md project-name sweep (upstream URL + provenance preserved), register-explorer.ps1 path made script-relative.
+- [x] Rebuilt: 123/123 tests, installer 1,688,844 B (1.61 MiB) with Citrus icon + bundled license; clean reinstall verified.
+- [ ] The already-published citrus-v0.1.0 release still points at the OLD installer (pre-branding). Refreshing that asset or cutting a new tag is a separate gated action.
+
 ## Known unknowns / risks
 - Binary-to-source build equivalence: not established (no decompile needed; bounded by choice).
 - WebView2 transparency edges at non-100% DPI (probe in M3).

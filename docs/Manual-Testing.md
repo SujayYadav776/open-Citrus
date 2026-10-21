@@ -1,16 +1,16 @@
 # Manual testing
 
-A checklist to try Mandarina in the real window before publishing a version. The automatic tests (`cargo test`) cover the logic; this covers what is only seen with the app open. Related: [[Wheel]], [[Tools]], [[Settings]], [[Languages]], [[Nautilus]], [[Publishing]].
+A checklist to try Citrus in the real window before publishing a version. The automatic tests (`cargo test`) cover the logic; this covers what is only seen with the app open. Related: [[Wheel]], [[Tools]], [[Settings]], [[Languages]], [[Nautilus]], [[Publishing]].
 
 Tick each box as you try it and note below what happened if something fails. Boxes marked **(already seen)** have evidence from an earlier session.
 
 ## 0. Preparation
 
 - [ ] `cd src-tauri && cargo test` passes and `npm run tauri build -- --debug --no-bundle` builds without warnings.
-- [ ] `bash packaging/install-nautilus.sh` and then `nautilus -q`. In Nautilus, right click → Scripts → "Convert with Mandarina" (or the name for your language) and the **Alt+M** shortcut show up.
-- [ ] Linux Mint only: `bash packaging/install-nemo.sh` and then `nemo -q`. In Nemo, right click on a file and on a folder → "Convert with Mandarina" shows up and opens the wheel; try a name with spaces and several selected files.
+- [ ] `bash packaging/install-nautilus.sh` and then `nautilus -q`. In Nautilus, right click → Scripts → "Convert with Citrus" (or the name for your language) and the **Alt+M** shortcut show up.
+- [ ] Linux Mint only: `bash packaging/install-nemo.sh` and then `nemo -q`. In Nemo, right click on a file and on a folder → "Convert with Citrus" shows up and opens the wheel; try a name with spaces and several selected files.
 - [ ] There are test files in a local `test-files/` folder (image, audio, video, pdf, docx, csv, srt, a folder). That folder is not in the repository (it is in `.gitignore`); create your own.
-- To see errors that the interface does not show, run the app from a terminal: `GDK_BACKEND=x11 src-tauri/target/debug/mandarina "path/file"`. There is no debug log in `/tmp` anymore.
+- To see errors that the interface does not show, run the app from a terminal: `GDK_BACKEND=x11 src-tauri/target/debug/citrus "path/file"`. There is no debug log in `/tmp` anymore.
 
 ## 1. Opening and closing the wheel (Nautilus flow)
 
@@ -64,9 +64,9 @@ Tick each box as you try it and note below what happened if something fails. Box
 - [ ] Removing a format and checking it again works without using "Restore". "Restore" goes back to the usual list.
 - [ ] The accent color changes instantly across the whole app, and also when the app is opened again.
 - [ ] Changing the language instantly repaints the settings screen, the wheel and the center text (decimal comma in French, Spanish and Portuguese).
-- [ ] The settings are saved in `~/.config/mandarina/config.json` and are still there when the app is reopened **(already seen: the file had audio without AIFF, `es` and `pink`)**.
+- [ ] The settings are saved in `~/.config/citrus/config.json` and are still there when the app is reopened **(already seen: the file had audio without AIFF, `es` and `pink`)**.
 - [ ] Keyboard: Tab to the gear and Enter opens it **without closing the app**.
-- [ ] With `MANDARINA_LANG=fr` defined in the environment, it wins over what was chosen in the settings (expected).
+- [ ] With `CITRUS_LANG=fr` defined in the environment, it wins over what was chosen in the settings (expected).
 - [ ] A system in a language without a translation (for example `LANG=zh_CN.UTF-8`) shows the app in English.
 
 ## 6. Languages
@@ -88,11 +88,11 @@ Tick each box as you try it and note below what happened if something fails. Box
 ## 8. The `.deb` package and the release build
 
 - [ ] `npm run tauri build -- --bundles deb` finishes and the `.deb` weighs a few MB.
-- [ ] Install it on a clean system (`sudo apt install ./Mandarina_*.deb`); `ffmpeg`, `pandoc`, `libreoffice` and the rest arrive as recommended packages.
-- [ ] `mandarina /path/file` from a terminal opens the wheel with the release binary.
+- [ ] Install it on a clean system (`sudo apt install ./Citrus_*.deb`); `ffmpeg`, `pandoc`, `libreoffice` and the rest arrive as recommended packages.
+- [ ] `citrus /path/file` from a terminal opens the wheel with the release binary.
 - [ ] Running it from the applications menu (no arguments): it opens the circle to drag a file onto.
 - [ ] On **Wayland** the wheel appears next to the cursor with the release binary, without `GDK_BACKEND=x11`.
-- [ ] Uninstalling (`sudo apt remove mandarina`) leaves nothing of the app behind.
+- [ ] Uninstalling (`sudo apt remove citrus`) leaves nothing of the app behind.
 - [ ] With a tool missing (for example, renaming `ffmpeg` for a moment), the error says what to install.
 
 ## If something fails

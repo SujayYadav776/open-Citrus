@@ -4,7 +4,7 @@ User settings: which target formats the conversion wheel shows, the language and
 
 ## What is saved
 
-`~/.config/mandarina/config.json` (or `$XDG_CONFIG_HOME/mandarina/`; `MANDARINA_CONFIG_DIR` forces it, useful for tests):
+`~/.config/citrus/config.json` (or `$XDG_CONFIG_HOME/citrus/`; `CITRUS_CONFIG_DIR` forces it, useful for tests):
 
 ```json
 { "formats": { "image": ["webp", "jpg", "png"], "audio": ["mp3", "wav", "ogg"] }, "language": "es", "accent": "blue" }
@@ -21,7 +21,7 @@ The list of each type is in the order in which it appears in the wheel. With no 
 
 ## Language and color
 
-- `language`: `"auto"` (no saved value) or the code of a language in `LANGUAGES` in `lang.rs` (`en`, `es`, `pt`, `fr`; `check_language` accepts them). It is applied **immediately**: `set_language` writes the file and calls `lang::reload()`, and the interface repaints its texts (see [[Languages]]). Order of decision: `MANDARINA_LANG` from the environment, then the saved language, then `LC_ALL`/`LANG`... (`lang::detect_now` passes the saved language as if it were the value of `MANDARINA_LANG` when that variable does not exist; if `MANDARINA_LANG` is defined it wins and the change is not noticed). `saved_language()` reads the file directly, without the lock of `current()`, so that a save error (which calls `tr!`) cannot block itself. The name of the Nautilus menu entry is chosen by the installer (which also reads this setting when it runs) and is not updated by itself when the setting changes.
+- `language`: `"auto"` (no saved value) or the code of a language in `LANGUAGES` in `lang.rs` (`en`, `es`, `pt`, `fr`; `check_language` accepts them). It is applied **immediately**: `set_language` writes the file and calls `lang::reload()`, and the interface repaints its texts (see [[Languages]]). Order of decision: `CITRUS_LANG` from the environment, then the saved language, then `LC_ALL`/`LANG`... (`lang::detect_now` passes the saved language as if it were the value of `CITRUS_LANG` when that variable does not exist; if `CITRUS_LANG` is defined it wins and the change is not noticed). `saved_language()` reads the file directly, without the lock of `current()`, so that a save error (which calls `tr!`) cannot block itself. The name of the Nautilus menu entry is chosen by the installer (which also reads this setting when it runs) and is not updated by itself when the setting changes.
 - `accent`: one of `ACCENTS` (`orange`, `red`, `pink`, `purple`, `blue`, `green`; the first one is the usual one). The tones are in `src/ajustes.js` (`ACENTOS`) and `aplicarAcento` changes `--naranja` and `--naranja-claro` on `:root`; all the CSS uses those variables (the editor tint is a `color-mix` with `--ed-naranja`). It is applied live and at startup (`aplicarAcentoGuardado` in `main.js`). The tool segments stay bluish gray and do not change.
 - The light or dark theme follows the system and is not configurable (forcing it would mean redoing the stylesheets).
 

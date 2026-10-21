@@ -1,4 +1,4 @@
-# Contributing to Mandarina
+# Contributing to Citrus
 
 Thanks for your interest. The project is small and the code is kept simple on purpose.
 
@@ -6,7 +6,7 @@ Thanks for your interest. The project is small and the code is kept simple on pu
 
 - `src/`: the interface, in plain HTML, CSS and JavaScript (no framework, no bundler). `index.html`, `styles.css`, `geometria.js`, `main.js` (wheel and cards), `editor.js` / `editor.css` (trim editors), `ajustes.js` / `ajustes.css` (settings screen) and `i18n.js` and `locales/` (translations).
 - `src-tauri/src/`: the Rust backend. `converters.rs` (conversions), `tools.rs` (compress, trim, rotate...), `wheel.rs` (window and wheel commands), `thumbnail.rs`, `lang.rs` (language and translated texts; the catalogs are in `src-tauri/locales/`), `config.rs` (user settings) and `lib.rs` (startup and command registration).
-- `packaging/`: the Nautilus script (`nautilus/mandarina-script`), the installer (`install-nautilus.sh`) and the icon.
+- `packaging/`: the Nautilus script (`nautilus/citrus-script`), the installer (`install-nautilus.sh`) and the icon.
 - `docs/`: see below.
 
 Conversions call system programs with `std::process::Command`, with separate arguments and no shell.

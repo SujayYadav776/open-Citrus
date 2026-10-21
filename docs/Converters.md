@@ -87,4 +87,4 @@ Every pandoc `docx` target (also the intermediate docx used by pdf/jpg/png) carr
 
 pandoc loses `<p align="center">` when reading it, so `wrap_centered_paragraphs` wraps it in a `<div align="center">` in the intermediate HTML (only the form with double quotes; `<h1 align=...>` and the `align` of `<td>` are left alone). A Markdown table inside a centered div is not centered (it stays on the left).
 
-Tried with a 6800-line report: A4 page, 11 page breaks and 35 centered paragraphs; the cover comes out centered with its logo. Manual test with a real file: `MANDARINA_REAL=/path/file.md MANDARINA_FORMAT=docx cargo test archivo_real -- --ignored --nocapture` (it creates the result next to the file).
+Tried with a 6800-line report: A4 page, 11 page breaks and 35 centered paragraphs; the cover comes out centered with its logo. Manual test with a real file: `CITRUS_REAL=/path/file.md CITRUS_FORMAT=docx cargo test archivo_real -- --ignored --nocapture` (it creates the result next to the file).

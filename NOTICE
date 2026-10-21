@@ -1,0 +1,25 @@
+Citrus - licensing and authorship notice
+=========================================
+
+Citrus is a Windows port of Mandarina.
+
+Underlying work (Mandarina)
+  Copyright (c) 2026 JorgeFTS
+  https://github.com/JorgeFTS/Mandarina
+  Licensed under the MIT License (see the LICENSE file in this repository).
+
+Windows port and Citrus branding (this fork)
+  Copyright (c) 2026 SujayYadav776
+  https://github.com/SujayYadav776/open-Citrus
+  Also licensed under the MIT License.
+
+Both notices are reproduced here and the full MIT license text ships in LICENSE.
+Per the MIT License, the original copyright and permission notice above must be
+retained in all copies or substantial portions of the software. Citrus is an
+independent derivative and is not endorsed by, or affiliated with, the original
+Mandarina author.
+
+Third-party tools
+  Citrus does not bundle or redistribute external converters. It invokes tools the
+  user installs separately (ffmpeg, ImageMagick, pandoc, LibreOffice, poppler,
+  Ghostscript, 7-Zip, zip/unzip, FLAC), each under its own license.

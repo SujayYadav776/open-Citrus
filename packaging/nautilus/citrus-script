@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Nautilus script: right-click > Scripts > Convert with Mandarina (or the name in your language)
+# Nautilus script: right-click > Scripts > Convert with Citrus (or the name in your language)
 # The installer copies it under the name of the active language.
 
 # Nautilus passes the selected items separated by newlines; all of them are kept,
@@ -18,14 +18,14 @@ if [ "${#files[@]}" -eq 0 ]; then
     exit 0
 fi
 
-# Search order for the program: the MANDARINA_BIN variable, PATH and, last,
+# Search order for the program: the CITRUS_BIN variable, PATH and, last,
 # the path that the installer writes in place of the marker
-if [ -n "$MANDARINA_BIN" ]; then
-    bin="$MANDARINA_BIN"
-elif command -v mandarina >/dev/null 2>&1; then
-    bin="mandarina"
+if [ -n "$CITRUS_BIN" ]; then
+    bin="$CITRUS_BIN"
+elif command -v citrus >/dev/null 2>&1; then
+    bin="citrus"
 else
-    bin="__MANDARINA_BIN__"
+    bin="__CITRUS_BIN__"
 fi
 
 # Transparent window: better with X11 (on Wayland it cannot be placed next to the cursor)

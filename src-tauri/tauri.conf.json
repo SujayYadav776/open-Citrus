@@ -41,13 +41,18 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
+    "resources": [
+      "../LICENSE",
+      "../NOTICE",
+      "../AUTHORS"
+    ],
     "linux": {
       "deb": {
         "depends": [],
         "files": {
-          "/usr/share/mandarina/install-nautilus.sh": "../packaging/install-nautilus.sh",
-          "/usr/share/mandarina/install-nemo.sh": "../packaging/install-nemo.sh",
-          "/usr/share/mandarina/nautilus/mandarina-script": "../packaging/nautilus/mandarina-script"
+          "/usr/share/citrus/install-nautilus.sh": "../packaging/install-nautilus.sh",
+          "/usr/share/citrus/install-nemo.sh": "../packaging/install-nemo.sh",
+          "/usr/share/citrus/nautilus/citrus-script": "../packaging/nautilus/citrus-script"
         },
         "recommends": [
           "ffmpeg",

@@ -86,5 +86,9 @@ the commit history.
 
 ## License
 
-MIT, same as upstream. Copyright (c) the Mandarina authors; Windows port changes are
-contributions to the same project. See [LICENSE](LICENSE).
+MIT. The underlying Mandarina work is Copyright (c) 2026 JorgeFTS; the Citrus Windows
+port and branding are Copyright (c) 2026 SujayYadav776. Both are distributed under the
+same MIT license, and the original copyright and permission notice are retained as MIT
+requires. See [LICENSE](LICENSE), [NOTICE](NOTICE), and [AUTHORS](AUTHORS) for the full
+attribution terms. Citrus is an independent derivative and is not endorsed by or
+affiliated with the original author.

@@ -43,11 +43,12 @@ zip/unzip, FLAC).
 
 | File | Size | SHA-256 |
 |---|---|---|
-| `Citrus_0.1.0_x64-setup.exe` (NSIS installer) | 1.54 MiB | `5d041b5c2a3b2cf7bd20503ae81898c8e82187fd0c99f42ee88e05d48a5db125` |
-| `citrus.exe` (portable, x64) | 4,976,640 B | `1e08dae9b6df2d9614c9981b634b7ffe7ea2060fd80827d4c042ebab504c34d5` |
+| `Citrus_0.1.0_x64-setup.exe` (NSIS installer) | 1.61 MiB | `c24baaf602bd4be4aaa4c9242c4918d290828cb2e8a2270946fa999c3a2f881f` |
+| `citrus.exe` (portable, x64) | 5,051,392 B | `6344357411d1814b1c5a5de3284ad483295af08fb64dd0729af47b1f8933afde` |
 
 Built with rustc 1.99.1 (MSVC), LTO release profile. The installer performs a per-user
-install to `%LOCALAPPDATA%\Citrus\`.
+install to `%LOCALAPPDATA%\Citrus\`, carries the Citrus icon, and bundles the `LICENSE`,
+`NOTICE` and `AUTHORS` files so the MIT notice ships with the app.
 
 ### Verification
 

@@ -27,6 +27,7 @@ pub fn run() {
             wheel::initial_paths,
             wheel::file_info,
             wheel::show_wheel,
+            wheel::cursor_page_pos,
             wheel::place_wheel,
             wheel::center_wheel,
             wheel::resize_center,

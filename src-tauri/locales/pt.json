@@ -81,5 +81,9 @@
   "The time is not valid": "O tempo não é válido",
   "Not an audio or video file": "Não é um arquivo de áudio nem de vídeo",
   "Invalid number of bars": "Número de barras inválido",
-  "Could not read the audio": "Não foi possível ler o áudio"
+  "Could not read the audio": "Não foi possível ler o áudio",
+  "The window no longer exists": "A janela não existe mais",
+  "The cursor position cannot be read": "Não foi possível ler a posição do cursor",
+  "There is no primary monitor": "Não há monitor principal",
+  "The cursor is outside the primary monitor": "O cursor está fora do monitor principal"
 }

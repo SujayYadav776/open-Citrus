@@ -87,7 +87,7 @@ pub fn file_info(path: String) -> Result<FileInfo, String> {
 }
 
 #[tauri::command]
-pub fn show_wheel(app: AppHandle) {
+pub fn show_wheel(app: AppHandle, expand: Option<bool>) {
     let Some(window) = app.get_webview_window("main") else {
         return;
     };
@@ -99,17 +99,53 @@ pub fn show_wheel(app: AppHandle) {
         // set_fullscreen is not used: that mode is managed by the compositor (it hides the top bar,
         // animates the workspace change) and the flicker of that transition would be noticeable on
         // every use. When moving and resizing the window by hand, the compositor does not intervene.
-        if let Some(monitor) = window.primary_monitor().ok().flatten() {
-            let pos = monitor.position();
-            let size = monitor.size();
-            let _ = window.set_position(PhysicalPosition::new(pos.x, pos.y));
-            let _ = window.set_size(PhysicalSize::new(size.width, size.height));
+        // When the interface already knows the cursor natively (cursor_page_pos succeeded, so it
+        // passes expand=false) the enlargement is pointless and the window only ever has 460 px.
+        if expand.unwrap_or(true) {
+            if let Some(monitor) = window.primary_monitor().ok().flatten() {
+                let pos = monitor.position();
+                let size = monitor.size();
+                let _ = window.set_position(PhysicalPosition::new(pos.x, pos.y));
+                let _ = window.set_size(PhysicalSize::new(size.width, size.height));
+            }
         }
     } else {
         let _ = window.center();
     }
     let _ = window.show();
     let _ = window.set_focus();
+}
+
+#[derive(serde::Serialize)]
+pub struct PagePoint {
+    x: f64,
+    y: f64,
+}
+
+// Native replacement for the enlargement dance: the global cursor in the same page
+// coordinates a mouse event would report while the window covered the primary monitor.
+// It errors where the platform forbids reading the pointer (Wayland) or the cursor sits
+// on another monitor, so the interface keeps the old dance in exactly those cases.
+#[tauri::command]
+pub fn cursor_page_pos(app: AppHandle) -> Result<PagePoint, String> {
+    let window = app
+        .get_webview_window("main")
+        .ok_or_else(|| tr("The window no longer exists", "La ventana ya no existe"))?;
+    let cursor = window
+        .cursor_position()
+        .map_err(|_| tr("The cursor position cannot be read", "No se puede leer la posición del cursor"))?;
+    let monitor = window
+        .primary_monitor()
+        .ok()
+        .flatten()
+        .ok_or_else(|| tr("There is no primary monitor", "No hay monitor principal"))?;
+    let scale = monitor.scale_factor();
+    let (mpos, msize) = (monitor.position(), monitor.size());
+    let (px, py) = (cursor.x - mpos.x as f64, cursor.y - mpos.y as f64);
+    if px < 0.0 || py < 0.0 || px >= msize.width as f64 || py >= msize.height as f64 {
+        return Err(tr("The cursor is outside the primary monitor", "El cursor está fuera del monitor principal"));
+    }
+    Ok(PagePoint { x: px / scale, y: py / scale })
 }
 
 // Puts the window at the logical size (width, height) at (x, y). The window manager ignores the

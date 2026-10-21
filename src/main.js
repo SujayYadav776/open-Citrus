@@ -326,7 +326,8 @@ const api = demo
       initial_paths: () => tauri.core.invoke("initial_paths"),
       file_info: (path) => tauri.core.invoke("file_info", { path }),
       get_targets_many: (paths) => tauri.core.invoke("get_targets_many", { paths }),
-      show_wheel: () => tauri.core.invoke("show_wheel"),
+      show_wheel: (expand) => tauri.core.invoke("show_wheel", { expand }),
+      cursor_page_pos: () => tauri.core.invoke("cursor_page_pos"),
       place_wheel: (x, y) => tauri.core.invoke("place_wheel", { x, y }),
       center_wheel: () => tauri.core.invoke("center_wheel"),
       get_tools: (path) => tauri.core.invoke("get_tools", { path }),
@@ -1120,15 +1121,27 @@ async function mostrarVentana() {
   const sobreCursor = !modoLibre && !demo;
   if (sobreCursor) escenario.classList.add("oculto");
   await esperar(60);
-  await api.show_wheel();
-  if (sobreCursor && vistaActual === "tarjeta") {
-    // A message from the start (e.g. "Unsupported format") goes in the center
-    await api.center_wheel();
-    await esperar(150);
-  } else if (sobreCursor) {
-    posRueda = await esperarCursor();
-    await api.place_wheel(posRueda.x, posRueda.y);
+  // Native path: the backend can read the pointer (Windows/macOS, cursor on the primary
+  // monitor). place_wheel runs while the window is still hidden, so there is no enlargement
+  // at all: the wheel simply appears at 460x460 over the cursor. If the read fails (Wayland)
+  // or the cursor lives on another monitor, we fall back to the original dance below.
+  const pagina = sobreCursor && vistaActual !== "tarjeta" ? await api.cursor_page_pos().catch(() => null) : null;
+  if (pagina) {
+    posRueda = pagina;
+    await api.place_wheel(pagina.x, pagina.y);
+    await api.show_wheel(false);
     await esperar(150); // so that the page adapts to the new size before showing the wheel
+  } else {
+    await api.show_wheel(true);
+    if (sobreCursor && vistaActual === "tarjeta") {
+      // A message from the start (e.g. "Unsupported format") goes in the center
+      await api.center_wheel();
+      await esperar(150);
+    } else if (sobreCursor) {
+      posRueda = await esperarCursor();
+      await api.place_wheel(posRueda.x, posRueda.y);
+      await esperar(150); // so that the page adapts to the new size before showing the wheel
+    }
   }
   escenario.classList.remove("oculto");
   if (sobreCursor) vigilarAbandono();

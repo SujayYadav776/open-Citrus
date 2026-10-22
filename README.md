@@ -75,7 +75,7 @@ onto it).
 Rust stable (MSVC), Node 24+, and the tool table above. From `src-tauri/`:
 
 ```
-cargo test          # 124 pass + 1 ignored (archivo_real is a manual probe)
+cargo test          # 127 pass + 1 ignored (archivo_real is a manual probe)
 cargo tauri dev     # hot reload
 cargo tauri build   # release exe + NSIS installer (target: nsis)
 ```

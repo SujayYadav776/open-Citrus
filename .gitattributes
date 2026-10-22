@@ -1,0 +1,20 @@
+# Keep the checkout identical on every platform, so the repository does not depend
+# on each developer's core.autocrlf. The i18n catalog test (src-tauri/src/lang.rs)
+# reads the .rs files as text and cuts them at "#[cfg(test)]"; with CRLF working
+# copies that cut silently failed and the test asked for translations of strings
+# that only exist inside the tests.
+* text=auto eol=lf
+
+# PowerShell verbs run on Windows; Windows PowerShell 5.1 expects CRLF.
+*.ps1 text eol=crlf
+
+# The Nautilus and Nemo helpers run on Linux.
+*.sh text eol=lf
+
+# Binary assets: never touch the bytes.
+*.png binary
+*.jpg binary
+*.gif binary
+*.ico binary
+*.icns binary
+*.docx binary

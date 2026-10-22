@@ -149,6 +149,13 @@ fn install_blocking(app: AppHandle, keys: Vec<String>) -> Result<(), String> {
             if INSTALL_CANCEL.load(Ordering::SeqCst) {
                 break;
             }
+            // Defense in depth: the interface filters to missing tools and re-checks right before
+            // installing, but a stale key could still reach here. If any of this tool's programs now
+            // resolves, there is nothing to install - report it as done and skip the winget call.
+            if present(spec.programs) {
+                emit(&app, spec.key, "done", "", index, total);
+                continue;
+            }
             emit(&app, spec.key, "start", "", index, total);
 
             let timeout = spec.timeout_secs;

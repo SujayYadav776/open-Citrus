@@ -296,6 +296,18 @@ mod tests {
         assert_eq!(tr!("Value {n}", "Valor {n}", n = n), "Valor 5");
     }
 
+    // The part of a source file that the user can see: everything up to its first test module.
+    // The line endings are normalized first, because a clone made by Git for Windows has CRLF in
+    // the working copy; there the pattern did not match, the whole file was scanned, and the
+    // scanner asked for translations of texts that only exist inside the tests.
+    fn visible_code(source: &str) -> String {
+        let code = source.replace("\r\n", "\n");
+        match code.find("#[cfg(test)]\nmod tests") {
+            Some(cut) => code[..cut].to_string(),
+            None => code,
+        }
+    }
+
     // All the English texts of the calls to tr and tr! in the code (without the tests)
     fn english_texts() -> Vec<String> {
         let mut texts = Vec::new();
@@ -306,7 +318,7 @@ mod tests {
                 continue;
             }
             let source = std::fs::read_to_string(&path).unwrap();
-            let code = source.split("#[cfg(test)]\nmod tests").next().unwrap();
+            let code = visible_code(&source);
             let bytes: Vec<char> = code.chars().collect();
             let mut i = 0;
             while i + 3 < bytes.len() {
@@ -372,6 +384,35 @@ mod tests {
                 assert!(texts.contains(key), "sobra en '{code}' (ya no está en el código): {key}");
             }
         }
+    }
+
+    #[test]
+    fn visible_code_recorta_antes_del_modulo_de_pruebas() {
+        let fuente = "// docs\npub fn uno() { let _ = tr!(\"Visible text\", \"Texto visible\"); }\n\n#[cfg(test)]\nmod tests {\n    fn dos() { let _ = tr(\"Hello\", \"Hola\"); }\n}\n";
+        let visto = visible_code(fuente);
+        assert!(visto.contains("Visible text"), "se perdió el código visible: {visto}");
+        assert!(!visto.contains("Hello"), "no cortó en el módulo de pruebas: {visto}");
+    }
+
+    #[test]
+    fn visible_code_no_depende_de_los_finales_de_linea() {
+        let fuente = "// docs\npub fn uno() { let _ = tr!(\"Visible text\", \"Texto visible\"); }\n\n#[cfg(test)]\nmod tests {\n    fn dos() { let _ = tr(\"Hello\", \"Hola\"); }\n}\n";
+        let crlf = fuente.replace("\n", "\r\n");
+        assert!(crlf.contains("\r\n"), "el ejemplo no tiene CRLF que probar");
+        // Before normalizing, the CRLF case returned the whole file and the scanner read the
+        // tests, asking the catalogs for "Hello".
+        assert_eq!(visible_code(&crlf), visible_code(fuente), "CRLF y LF dan resultados distintos");
+        assert!(!visible_code(&crlf).contains("Hello"), "el CRLF leyó el módulo de pruebas");
+    }
+
+    #[test]
+    fn los_textos_no_vienen_de_los_pruebas() {
+        let texts = english_texts();
+        // "Hello" only exists inside tr_elige_el_idioma, in this module. If the scanner returns
+        // it, the cut stopped working somewhere and nobody saw it.
+        assert!(!texts.contains(&"Hello".to_string()), "el escáner está leyendo el módulo de pruebas");
+        // A text that really is visible has to be there, so the line above cannot pass by chance
+        assert!(texts.contains(&"Type a name for the new file".to_string()), "falta un texto real del código");
     }
 
     #[test]

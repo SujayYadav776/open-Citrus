@@ -386,13 +386,32 @@ pub(crate) fn st(path: &Path) -> String {
 }
 
 // file:// URI for a path: Unix needs file:///abs; Windows must get forward slashes and
-// the third slash (file:///C:/...), otherwise LibreOffice rejects the profile location
+// the third slash (file:///C:/...), otherwise LibreOffice rejects the profile location.
+// The path is percent-encoded (RFC 3986) so a space in the temp/username path, a unicode
+// name, or a literal % / # / ? do not corrupt the URI (which previously broke every
+// LibreOffice conversion for users whose %TEMP% contained a space).
 pub(crate) fn file_uri(path: &Path) -> String {
     let text = path.to_string_lossy().replace("\\", "/");
-    if text.starts_with('/') {
-        format!("file://{text}")
+    let mut encoded = String::with_capacity(text.len() + 8);
+    for b in text.bytes() {
+        // Keep unreserved chars, the path separator, the drive-letter colon, '@' and the
+        // sub-delims RFC 3986 allows in a path segment; percent-encode everything else
+        // (space, %, #, ?, [ ], { }, |, ", <, >, ^, ` and every non-ASCII byte).
+        let keep = matches!(b,
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9'
+            | b'-' | b'.' | b'_' | b'~'
+            | b'/' | b':' | b'@'
+            | b'!' | b'$' | b'&' | b'\'' | b'(' | b')' | b'*' | b'+' | b',' | b';' | b'=');
+        if keep {
+            encoded.push(b as char);
+        } else {
+            encoded.push_str(&format!("%{b:02X}"));
+        }
+    }
+    if encoded.starts_with('/') {
+        format!("file://{encoded}")
     } else {
-        format!("file:///{text}")
+        format!("file:///{encoded}")
     }
 }
 
@@ -1350,6 +1369,20 @@ pub(crate) mod tests {
 
     pub(crate) fn lock() -> std::sync::MutexGuard<'static, ()> {
         LOCK.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    #[test]
+    fn file_uri_escapa_caracteres_peligrosos() {
+        // A space (e.g. a Windows username "John Doe") must be %20; '#' must not start a fragment
+        assert_eq!(file_uri(Path::new("/tmp/a b/c#d")), "file:///tmp/a%20b/c%23d");
+        // Windows: backslashes become slashes and the drive-letter colon is kept
+        assert_eq!(file_uri(Path::new("C:\\Users\\John Doe\\Temp\\profile")), "file:///C:/Users/John%20Doe/Temp/profile");
+        // A literal '%' must be encoded, not left to be misread as an escape
+        assert_eq!(file_uri(Path::new("/tmp/100%.txt")), "file:///tmp/100%25.txt");
+        // Non-ASCII is UTF-8 percent-encoded
+        assert_eq!(file_uri(Path::new("/tmp/ñ")), "file:///tmp/%C3%B1");
+        // Unreserved characters stay literal
+        assert_eq!(file_uri(Path::new("/tmp/a-b_c.d~e")), "file:///tmp/a-b_c.d~e");
     }
 
     #[test]

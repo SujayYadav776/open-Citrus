@@ -1,5 +1,36 @@
 # Release notes
 
+## v1.2.0 - Citrus (Windows)
+
+Improves the in-app tools installer introduced in v1.1.0 so a multi-minute
+install no longer blocks the screen and you can follow it package by package.
+
+### What's new
+
+- **Per-package step list.** During an install, each queued tool is its own row
+  that updates live — **Waiting → Installing → Done/Failed** — with the current
+  winget output line beneath. Applies to both the first-run banner and the
+  Settings → Converter tools section.
+- **Minimizable during install.** The borderless always-on-top card becomes a
+  normal, minimizable window while installing: a **Minimize** button (next to
+  Stop) tucks it into the taskbar and the install keeps running in the
+  background; restore it from the taskbar to see live progress. When the install
+  ends, the window returns to the floating card.
+
+### Release artifacts
+
+| File | Size | SHA-256 |
+|---|---|---|
+| `Citrus_1.2.0_x64-setup.exe` (NSIS installer) | 1,669,549 B (1.59 MiB) | `8a09d0df03252ca4416cbc71dae166e80490e0e7111a5392c1d07214aecac28c` |
+| `citrus.exe` (portable, x64) | 5,155,840 B | `f59b262ecdd02342419372f081e3545005f81f1f78fdb09a033b24185f642227` |
+
+### Verification
+
+- 124/124 unit and integration tests pass; all frontend JS parses.
+- The step list + Minimize flow verified live in the app's demo mode: packages
+  advance Waiting → Installing → Done with the current winget line, and the
+  Minimize button appears beside Stop.
+
 ## v1.1.0 - Citrus (Windows)
 
 Quality release on top of v0.1.0: the app is now always closable, finds its converter

@@ -22,12 +22,12 @@ cd src-tauri
 cargo test
 ```
 
-Integration tests skip themselves when a tool (ffmpeg, pandoc, ghostscript...) is missing. Install them all (see [Installation](README.md#installation)) to run the full suite. The tests use English, the default language, and there are specific tests for Spanish. Run `cargo check` as well before sending a change.
+Integration tests skip themselves when a tool (ffmpeg, pandoc, ghostscript...) is missing. Install them all (see [Requirements](README.md#requirements)) to run the full suite. The tests use English, the default language, and there are specific tests for Spanish. Run `cargo check` as well before sending a change.
 
 ## Conventions
 
 - Never overwrite the user's files; always pick a new name.
-- Error messages are short and, when a tool is missing, include the `apt install` command.
+- Error messages are short and, when a tool is missing, include the install command for the current platform. Use `spawn::install_hint()` rather than writing one by hand: it emits `sudo apt install …` on Linux and the `winget install …` equivalent on Windows.
 - Every text the user can see must exist in **English and Spanish**, and in every other language that has a catalog (`cargo test` tells you what is missing in the Rust side). English is the reference; the Spanish text must say the same thing. Use neutral Spanish (no slang).
 - Keep the code simple, student level.
 

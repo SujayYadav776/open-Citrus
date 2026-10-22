@@ -29,7 +29,7 @@ Not translated: the messages of `ffmpeg`, ImageMagick and the other programs (pa
 - The English texts come first and are the reference; Spanish and the others must say the same.
 - No visible text is written directly in the code outside the translation tables.
 - The Rust tests use **English** (the default language) and there are specific tests for the others.
-- **Catalog tests** (`lang.rs`): `los_catalogos_tienen_todos_los_textos` walks the source code looking for every `tr`/`tr!` text and fails if a catalog lacks any of them, or has one that no longer exists; `las_traducciones_llevan_los_mismos_marcadores` checks that each translation keeps its `{placeholders}`. There are no automatic tests in JS: the keys of each `locales/*.js` must be those of `en` (156 keys).
+- **Catalog tests** (`lang.rs`): `los_catalogos_tienen_todos_los_textos` walks the source code looking for every `tr`/`tr!` text and fails if a catalog lacks any of them, or has one that no longer exists; `las_traducciones_llevan_los_mismos_marcadores` checks that each translation keeps its `{placeholders}`. There are no automatic tests in JS: the keys of each `locales/*.js` must be those of `en` (193 keys).
 - The Portuguese (Brazil) and French translations were written by the assistant, **without a native speaker's review**: they should be reviewed, above all the technical terms (metadata, trim, flip).
 - Long texts: `RÉDUIRE LA TAILLE` and `REDIMENSIONNER` fit in the segments of the tools wheel, but tightly. With a new language the tools wheel has to be checked (`?demo=herramientas&tipo=video&lang=<code>`).
 

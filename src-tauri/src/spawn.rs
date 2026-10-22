@@ -10,6 +10,30 @@
 use std::ops::{Deref, DerefMut};
 use std::process::{Child, Command};
 
+// Windows process creation flags. Citrus is a GUI (windows-subsystem) app, so it has no console
+// to hand down; launching a console tool (ffmpeg, ffprobe, 7z, unzip, pandoc, magick...) without
+// CREATE_NO_WINDOW makes Windows allocate a fresh console for it, which flashes a black box on
+// screen even when its stdio is redirected to a pipe. Suppressing the window is cosmetic only:
+// the tools still run and still write to the pipes we read progress from.
+#[cfg(windows)]
+pub(crate) const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+#[cfg(windows)]
+const CREATE_SUSPENDED: u32 = 0x0000_0004; // lets us place the child in the Job Object before it runs
+
+// Suppresses the console window for a child launched directly (e.g. via `.output()`). Callers that
+// go through `spawn_killing_tree` get this for free. No-op on Unix, which has no consoles to allocate.
+pub(crate) fn hide_console(command: &mut Command) {
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        command.creation_flags(CREATE_NO_WINDOW);
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = command;
+    }
+}
+
 pub(crate) struct Proc {
     child: Child,
     #[cfg(windows)]
@@ -39,8 +63,7 @@ pub(crate) fn spawn_killing_tree(mut command: Command) -> Result<Proc, std::io::
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
-        const CREATE_SUSPENDED: u32 = 0x0000_0004;
-        command.creation_flags(CREATE_SUSPENDED);
+        command.creation_flags(CREATE_SUSPENDED | CREATE_NO_WINDOW);
         let child = command.spawn()?;
         // Degraded case: if the job cannot be set up we resume the process anyway and
         // fall back to killing just the direct child.

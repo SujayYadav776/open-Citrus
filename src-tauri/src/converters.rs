@@ -269,12 +269,13 @@ pub(crate) fn probe_duration(src: &str) -> Option<f64> {
     if !tool_exists("ffprobe") {
         return None;
     }
-    let output = Command::new("ffprobe")
+    let mut command = Command::new("ffprobe");
+    command
         .args(["-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", "--", src])
         .stdin(Stdio::null())
-        .stderr(Stdio::null())
-        .output()
-        .ok()?;
+        .stderr(Stdio::null());
+    crate::spawn::hide_console(&mut command);
+    let output = command.output().ok()?;
     parse_duration(&String::from_utf8_lossy(&output.stdout))
 }
 
@@ -686,7 +687,10 @@ fn send_pdf_shapes_behind(docx: &Path, tmp: &Path) {
     if !tool_exists("unzip") || !tool_exists("zip") {
         return;
     }
-    let Ok(output) = Command::new("unzip").args(["-p", &st(docx), "word/document.xml"]).stderr(Stdio::null()).output() else {
+    let mut command = Command::new("unzip");
+    command.args(["-p", &st(docx), "word/document.xml"]).stderr(Stdio::null());
+    crate::spawn::hide_console(&mut command);
+    let Ok(output) = command.output() else {
         return;
     };
     let Ok(xml) = String::from_utf8(output.stdout) else {

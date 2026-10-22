@@ -305,7 +305,10 @@ mod tests {
             if path.extension().and_then(|e| e.to_str()) != Some("rs") {
                 continue;
             }
-            let source = std::fs::read_to_string(&path).unwrap();
+            // Normalize the line endings first: a Windows clone with core.autocrlf=true has CRLF
+            // in the working copy, and then the split below would not match, so the whole file was
+            // scanned, including the tests, whose texts are not visible to the user.
+            let source = std::fs::read_to_string(&path).unwrap().replace("\r\n", "\n");
             let code = source.split("#[cfg(test)]\nmod tests").next().unwrap();
             let bytes: Vec<char> = code.chars().collect();
             let mut i = 0;

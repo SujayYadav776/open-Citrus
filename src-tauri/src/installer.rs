@@ -1,0 +1,216 @@
+// Detecting and installing the external command-line tools Citrus shells out to.
+//
+// Citrus is only a driver: the actual conversions are done by ffmpeg, ImageMagick, pandoc,
+// LibreOffice, 7-Zip, poppler and ghostscript. On a fresh machine those are missing, so this
+// module powers the "Tools" section of the settings and the first-run banner: it reports which
+// tools are present and, on Windows, installs the missing ones silently through `winget`,
+// streaming progress and allowing the in-flight installer to be stopped.
+//
+// A tool counts as present when any of its program names resolves (PATH first, then the known
+// install directories - see spawn::find_program), which is the same rule the converters use.
+use crate::spawn::find_program;
+use crate::tr;
+use serde::Serialize;
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+use tauri::{AppHandle, Emitter};
+
+// One external tool: the programs that count as it, its winget package id, and whether it is
+// essential (without it even the most common conversions - images, audio, video - do not work).
+pub struct ToolSpec {
+    key: &'static str,
+    // winget package id, or None when the tool is not distributed through winget
+    winget: Option<&'static str>,
+    // official download page, for tools that must be installed manually
+    manual_url: Option<&'static str>,
+    programs: &'static [&'static str],
+    essential: bool,
+}
+
+// Order matters: the essentials first, then the ones that unlock extra formats.
+const TOOLS: [ToolSpec; 7] = [
+    ToolSpec { key: "ffmpeg", winget: Some("Gyan.FFmpeg"), manual_url: None, programs: &["ffmpeg", "ffprobe"], essential: true },
+    ToolSpec { key: "imagemagick", winget: Some("ImageMagick.ImageMagick"), manual_url: None, programs: &["magick"], essential: true },
+    ToolSpec { key: "pandoc", winget: Some("JohnMacFarlane.Pandoc"), manual_url: None, programs: &["pandoc"], essential: false },
+    ToolSpec { key: "libreoffice", winget: Some("TheDocumentFoundation.LibreOffice"), manual_url: None, programs: &["soffice", "libreoffice"], essential: false },
+    ToolSpec { key: "sevenzip", winget: Some("7zip.7zip"), manual_url: None, programs: &["7z", "7za", "7zz"], essential: false },
+    ToolSpec { key: "poppler", winget: Some("oschwartz10612.Poppler"), manual_url: None, programs: &["pdftoppm", "pdftotext"], essential: false },
+    // Ghostscript is not on winget; it must be installed from the official page.
+    ToolSpec { key: "ghostscript", winget: None, manual_url: Some("https://ghostscript.com/releases/gsdnld.html"), programs: &["gs", "gswin64c"], essential: false },
+];
+
+#[derive(Serialize)]
+pub struct ToolStatus {
+    key: &'static str,
+    winget: Option<&'static str>,
+    manual_url: Option<&'static str>,
+    present: bool,
+    essential: bool,
+}
+
+// The payload streamed to the interface while installing: which tool, what phase, and a line of
+// installer output (for "log"). index/total let the interface show "2 of 5".
+#[derive(Clone, Serialize)]
+struct InstallEvent {
+    key: String,
+    phase: String,
+    line: String,
+    index: usize,
+    total: usize,
+}
+
+fn present(programs: &[&str]) -> bool {
+    programs.iter().any(|p| find_program(p).is_some())
+}
+
+#[tauri::command]
+pub fn get_tool_status() -> Vec<ToolStatus> {
+    TOOLS
+        .iter()
+        .map(|t| ToolStatus { key: t.key, winget: t.winget, manual_url: t.manual_url, present: present(t.programs), essential: t.essential })
+        .collect()
+}
+
+// Cancel request for the running batch, and the pid of the winget process currently in flight (so
+// "Stop" can terminate just that process, letting any installer it already launched finish).
+static INSTALL_CANCEL: AtomicBool = AtomicBool::new(false);
+static INSTALL_PID: AtomicU32 = AtomicU32::new(0);
+
+#[tauri::command]
+pub fn cancel_install() {
+    INSTALL_CANCEL.store(true, Ordering::SeqCst);
+    let pid = INSTALL_PID.load(Ordering::SeqCst);
+    if pid != 0 {
+        kill_pid(pid);
+    }
+}
+
+// Kills a single process by pid (no /T: child installers already started are left to finish).
+#[cfg(windows)]
+fn kill_pid(pid: u32) {
+    use std::process::{Command, Stdio};
+    let mut command = Command::new("taskkill");
+    command.args(["/F", "/PID", &pid.to_string()]).stdout(Stdio::null()).stderr(Stdio::null());
+    crate::spawn::hide_console(&mut command);
+    let _ = command.status();
+}
+
+#[cfg(not(windows))]
+fn kill_pid(_pid: u32) {}
+
+#[tauri::command]
+pub async fn install_tools(app: AppHandle, keys: Vec<String>) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || install_blocking(app, keys))
+        .await
+        .map_err(|e| tr!("The installer stopped unexpectedly: {error}", "El instalador se detuvo inesperadamente: {error}", error = e))?
+}
+
+fn install_blocking(app: AppHandle, keys: Vec<String>) -> Result<(), String> {
+    #[cfg(not(windows))]
+    {
+        let _ = (app, keys);
+        Err(tr!("Automatic install is only available on Windows", "La instalación automática solo está disponible en Windows"))
+    }
+    #[cfg(windows)]
+    {
+        use std::io::{BufRead, BufReader};
+        use std::process::{Command, Stdio};
+
+        let winget = find_program("winget").ok_or_else(|| tr!("winget is not available on this system", "winget no está disponible en este sistema"))?;
+        let specs: Vec<&ToolSpec> = TOOLS.iter().filter(|t| t.winget.is_some() && keys.iter().any(|k| k == t.key)).collect();
+        let total = specs.len();
+        INSTALL_CANCEL.store(false, Ordering::SeqCst);
+        INSTALL_PID.store(0, Ordering::SeqCst);
+
+        for (index, spec) in specs.into_iter().enumerate() {
+            if INSTALL_CANCEL.load(Ordering::SeqCst) {
+                break;
+            }
+            emit(&app, spec.key, "start", "", index, total);
+
+            let mut command = Command::new(&winget);
+            command
+                .args(["install", "--id", spec.winget.unwrap(), "--exact", "--silent", "--accept-package-agreements", "--accept-source-agreements", "--disable-interactivity"])
+                .stdin(Stdio::null())
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped());
+            crate::spawn::hide_console(&mut command);
+            let mut child = match command.spawn() {
+                Ok(c) => c,
+                Err(e) => {
+                    emit(&app, spec.key, "error", &tr!("Could not start the installer: {error}", "No se pudo iniciar el instalador: {error}", error = e), index, total);
+                    continue;
+                }
+            };
+            INSTALL_PID.store(child.id(), Ordering::SeqCst);
+
+            // winget writes progress to stdout and occasional warnings to stderr; drain both at the
+            // same time (stderr on its own thread) so neither pipe can fill and block the child.
+            let err_thread = child.stderr.take().map(|err| {
+                let app = app.clone();
+                let key = spec.key.to_string();
+                std::thread::spawn(move || {
+                    for line in BufReader::new(err).lines().map_while(Result::ok) {
+                        let line = line.trim();
+                        if !line.is_empty() {
+                            emit(&app, &key, "log", line, index, total);
+                        }
+                    }
+                })
+            });
+            if let Some(out) = child.stdout.take() {
+                for line in BufReader::new(out).lines().map_while(Result::ok) {
+                    let line = line.trim();
+                    if !line.is_empty() {
+                        emit(&app, spec.key, "log", line, index, total);
+                    }
+                    if INSTALL_CANCEL.load(Ordering::SeqCst) {
+                        kill_pid(child.id());
+                        break;
+                    }
+                }
+            }
+            let status = child.wait();
+            if let Some(t) = err_thread {
+                let _ = t.join();
+            }
+            INSTALL_PID.store(0, Ordering::SeqCst);
+
+            if INSTALL_CANCEL.load(Ordering::SeqCst) {
+                emit(&app, spec.key, "cancelled", "", index, total);
+                break;
+            }
+            let ok = matches!(&status, Ok(s) if s.success());
+            emit(&app, spec.key, if ok { "done" } else { "error" }, "", index, total);
+        }
+        Ok(())
+    }
+}
+
+fn emit(app: &AppHandle, key: &str, phase: &str, line: &str, index: usize, total: usize) {
+    let _ = app.emit(
+        "install-progress",
+        InstallEvent { key: key.to_string(), phase: phase.to_string(), line: line.to_string(), index, total },
+    );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn la_lista_de_herramientas_es_coherente() {
+        assert_eq!(get_tool_status().len(), TOOLS.len());
+        // every tool has at least one program to look for and a way to get it (winget or manual)
+        for t in &TOOLS {
+            assert!(t.winget.is_some() || t.manual_url.is_some(), "{} has no install path", t.key);
+            assert!(!t.programs.is_empty(), "{}", t.key);
+        }
+        // keys are unique and the two essentials come first (ffmpeg, imagemagick)
+        let mut keys: Vec<&str> = TOOLS.iter().map(|t| t.key).collect();
+        let n = keys.len();
+        keys.sort();
+        keys.dedup();
+        assert_eq!(keys.len(), n, "duplicated tool key");
+        assert!(TOOLS.iter().filter(|t| t.essential).count() >= 2);
+    }
+}

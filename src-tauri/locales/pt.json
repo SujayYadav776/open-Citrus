@@ -85,5 +85,9 @@
   "The window no longer exists": "A janela não existe mais",
   "The cursor position cannot be read": "Não foi possível ler a posição do cursor",
   "There is no primary monitor": "Não há monitor principal",
-  "The cursor is outside the primary monitor": "O cursor está fora do monitor principal"
+  "The cursor is outside the primary monitor": "O cursor está fora do monitor principal",
+  "The installer stopped unexpectedly: {error}": "O instalador parou inesperadamente: {error}",
+  "Automatic install is only available on Windows": "A instalação automática só está disponível no Windows",
+  "winget is not available on this system": "O winget não está disponível neste sistema",
+  "Could not start the installer: {error}": "Não foi possível iniciar o instalador: {error}"
 }

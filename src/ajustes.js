@@ -36,6 +36,17 @@
     green: ["#2e9e5b", "#55c47f"],
   };
 
+  // External tools: brand names are not translated (the descriptions/UI strings are, in i18n.js)
+  const NOMBRES = {
+    ffmpeg: "FFmpeg",
+    imagemagick: "ImageMagick",
+    pandoc: "pandoc",
+    libreoffice: "LibreOffice",
+    sevenzip: "7-Zip",
+    poppler: "Poppler",
+    ghostscript: "Ghostscript",
+  };
+
   // Paints the whole app with that color (the stylesheets use --naranja and --naranja-claro)
   function aplicarAcento(id) {
     const [normal, claro] = ACENTOS[id] || ACENTOS.orange;
@@ -49,6 +60,11 @@
       let cambio = false;
       let tipos = [];
       let prefs = null;
+      let herramientas = [];
+      let instalando = false;
+      let ultimoLog = "";
+      let progNode = null;
+      let quitarEscucha = null;
 
       const raiz = el("div", "ed-raiz aj-raiz");
       raiz.tabIndex = -1;
@@ -69,6 +85,12 @@
 
       function cerrar() {
         document.removeEventListener("keydown", alPulsarTecla, true);
+        if (quitarEscucha) {
+          try {
+            quitarEscucha();
+          } catch (e) {}
+          quitarEscucha = null;
+        }
         resolver(cambio);
       }
       function alPulsarTecla(e) {
@@ -229,14 +251,120 @@
         return [idioma, color, formatos];
       }
 
-      function dibujar() {
-        lista.replaceChildren(...dibujarGeneral(), ...tipos.map(dibujarTipo));
+      // ----- External tools section -----
+
+      function dibujarHerramientas() {
+        if (!api.get_tool_status) return [];
+        const sec = el("section", "aj-tipo aj-herr");
+        sec.append(el("h3", "aj-nombre", tr("tools.title")));
+        const faltan = herramientas.filter((h) => !h.present);
+        sec.append(el("div", "ed-subtitulo", faltan.length ? tr("tools.hintMissing", { count: faltan.length }) : tr("tools.hintOk")));
+
+        const listaHerr = el("div", "aj-herr-lista");
+        for (const h of herramientas) {
+          const fila = el("div", "aj-herr-fila" + (h.present ? " aj-herr-ok" : " aj-herr-falta"));
+          const info = el("div", "aj-herr-info");
+          info.append(el("span", "aj-herr-nombre", NOMBRES[h.key] || h.key));
+          if (tr("tools.desc." + h.key) !== "tools.desc." + h.key) info.append(el("span", "aj-herr-desc", tr("tools.desc." + h.key)));
+          fila.append(info);
+          fila.append(el("span", "aj-herr-estado", h.present ? tr("tools.present") : tr("tools.missingShort")));
+          if (!h.present && !instalando) {
+            if (h.winget && api.install_tools) {
+              const b = el("button", "aj-herr-instalar", tr("tools.install"));
+              b.type = "button";
+              b.addEventListener("click", () => instalar([h.key]));
+              fila.append(b);
+            } else if (h.manual_url) {
+              const b = el("button", "aj-herr-copiar", tr("tools.manual"));
+              b.type = "button";
+              b.addEventListener("click", () => copiarTexto(h.manual_url, tr("tools.manualCopied")));
+              fila.append(b);
+            }
+          }
+          listaHerr.append(fila);
+        }
+        sec.append(listaHerr);
+
+        const faltanWinget = faltan.filter((h) => h.winget);
+        const botones = el("div", "aj-herr-botones");
+        if (instalando) {
+          const parar = el("button", "aj-herr-parar", tr("tools.stop"));
+          parar.type = "button";
+          parar.addEventListener("click", () => api.cancel_install && api.cancel_install());
+          botones.append(parar);
+        } else if (faltanWinget.length && api.install_tools) {
+          const todos = el("button", "aj-herr-todos", tr("tools.installAll"));
+          todos.type = "button";
+          todos.addEventListener("click", () => instalar(faltanWinget.map((h) => h.key)));
+          const copiar = el("button", "aj-herr-copiar", tr("tools.copy"));
+          copiar.type = "button";
+          copiar.addEventListener("click", copiarComando);
+          botones.append(todos, copiar);
+        }
+        sec.append(botones);
+
+        const prog = el("p", "aj-herr-progreso");
+        prog.textContent = ultimoLog;
+        progNode = prog;
+        sec.append(prog);
+        return [sec];
       }
 
-      Promise.all([api.get_config(), api.get_prefs()])
-        .then(([datos, preferencias]) => {
+      function alProgresoInstalacion(ev) {
+        const nombre = NOMBRES[ev.key] || ev.key;
+        if (ev.phase === "start") ultimoLog = tr("tools.installingOf", { name: nombre, index: ev.index + 1, total: ev.total });
+        else if (ev.phase === "log" && ev.line) ultimoLog = ev.line;
+        else if (ev.phase === "done") ultimoLog = tr("tools.doneOf", { name: nombre });
+        else if (ev.phase === "error") ultimoLog = tr("tools.failedOf", { name: nombre });
+        else if (ev.phase === "cancelled") ultimoLog = tr("tools.cancelled");
+        if (progNode) progNode.textContent = ultimoLog;
+      }
+
+      async function instalar(keys) {
+        if (instalando || !api.install_tools) return;
+        instalando = true;
+        ultimoLog = tr("tools.installing");
+        dibujar();
+        try {
+          if (api.on_install_progress && !quitarEscucha) quitarEscucha = await api.on_install_progress(alProgresoInstalacion);
+          await api.install_tools(keys);
+        } catch (e) {
+          ultimoLog = String(e).replace(/^Error: /, "");
+        } finally {
+          instalando = false;
+          try {
+            herramientas = await api.get_tool_status();
+          } catch (e) {}
+          dibujar();
+        }
+      }
+
+      function copiarTexto(texto, mensaje) {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(texto).then(() => {
+            ultimoLog = mensaje;
+            if (progNode) progNode.textContent = ultimoLog;
+          }).catch(() => {});
+        }
+      }
+
+      function copiarComando() {
+        const cmd = herramientas
+          .filter((h) => !h.present && h.winget)
+          .map((h) => `winget install --id ${h.winget} --exact --accept-package-agreements --accept-source-agreements`)
+          .join("\n");
+        copiarTexto(cmd, tr("tools.copied"));
+      }
+
+      function dibujar() {
+        lista.replaceChildren(...dibujarGeneral(), ...dibujarHerramientas(), ...tipos.map(dibujarTipo));
+      }
+
+      Promise.all([api.get_config(), api.get_prefs(), api.get_tool_status ? api.get_tool_status() : Promise.resolve([])])
+        .then(([datos, preferencias, herr]) => {
           tipos = datos;
           prefs = preferencias;
+          herramientas = herr || [];
           dibujar();
           cerrarBoton.focus();
         })

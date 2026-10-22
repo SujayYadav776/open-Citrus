@@ -85,5 +85,9 @@
   "The window no longer exists": "La fenêtre n'existe plus",
   "The cursor position cannot be read": "Impossible de lire la position du curseur",
   "There is no primary monitor": "Il n'y a pas d'écran principal",
-  "The cursor is outside the primary monitor": "Le curseur est hors de l'écran principal"
+  "The cursor is outside the primary monitor": "Le curseur est hors de l'écran principal",
+  "The installer stopped unexpectedly: {error}": "L'installateur s'est arrêté inopinément : {error}",
+  "Automatic install is only available on Windows": "L'installation automatique n'est disponible que sous Windows",
+  "winget is not available on this system": "winget n'est pas disponible sur ce système",
+  "Could not start the installer: {error}": "Impossible de lancer l'installateur : {error}"
 }

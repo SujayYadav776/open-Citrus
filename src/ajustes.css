@@ -69,3 +69,45 @@
 .aj-ficha.aj-activa { border-color: var(--ed-naranja); }
 .aj-ficha:has(input:disabled) { opacity: 0.45; cursor: default; }
 .aj-ficha:has(input:focus-visible) { outline: 2px solid var(--ed-naranja); outline-offset: 2px; }
+
+/* ---------- External tools section ---------- */
+
+.aj-herr-lista { display: flex; flex-direction: column; gap: 6px; }
+.aj-herr-fila {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--ed-panel);
+}
+.aj-herr-info { display: flex; flex-direction: column; gap: 1px; flex: 1; min-width: 0; }
+.aj-herr-nombre { font-size: 13px; font-weight: 800; }
+.aj-herr-desc { font-size: 11px; color: var(--ed-suave); }
+.aj-herr-estado { font-size: 11px; font-weight: 800; padding: 2px 9px; border-radius: 999px; white-space: nowrap; }
+.aj-herr-ok .aj-herr-estado { background: rgba(46, 158, 91, 0.16); color: #1f7a45; }
+.aj-herr-falta .aj-herr-estado { background: rgba(229, 56, 59, 0.14); color: #b23b3e; }
+
+.aj-herr-instalar,
+.aj-herr-todos,
+.aj-herr-parar,
+.aj-herr-copiar {
+  appearance: none;
+  border: 0;
+  border-radius: 999px;
+  padding: 6px 13px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.aj-herr-instalar,
+.aj-herr-todos { background: var(--ed-naranja); color: #fff; }
+.aj-herr-instalar:hover,
+.aj-herr-todos:hover { filter: brightness(1.08); }
+.aj-herr-copiar { background: transparent; color: var(--ed-texto); border: 1px solid var(--ed-borde); }
+.aj-herr-copiar:hover { background: var(--ed-panel); }
+.aj-herr-parar { background: #b23b3e; color: #fff; }
+.aj-herr-botones { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 2px; }
+.aj-herr-progreso { margin: 2px 0 0; min-height: 16px; font-size: 11px; color: var(--ed-suave); word-break: break-word; }

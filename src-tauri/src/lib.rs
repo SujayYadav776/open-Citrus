@@ -1,5 +1,6 @@
 mod config;
 mod converters;
+mod installer;
 mod lang;
 mod spawn;
 mod thumbnail;
@@ -70,6 +71,7 @@ pub fn run() {
             config::get_config,
             config::set_formats,
             config::reset_formats,
+            config::mark_setup_seen,
             converters::get_targets,
             converters::convert,
             converters::get_targets_many,
@@ -89,6 +91,9 @@ pub fn run() {
             tools::preview_image,
             tools::video_frame,
             tools::waveform,
+            installer::get_tool_status,
+            installer::install_tools,
+            installer::cancel_install,
             wheel::cancel,
             wheel::quit
         ])

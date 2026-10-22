@@ -39,6 +39,9 @@ pub struct Config {
     // one of ACCENTS; with no value, orange
     #[serde(default, skip_serializing_if = "Option::is_none")]
     accent: Option<String>,
+    // the first-run tools banner was dismissed (so it is not shown again)
+    #[serde(default)]
+    setup_seen: bool,
 }
 
 fn key_of(kind: Kind) -> Option<&'static str> {
@@ -198,6 +201,8 @@ pub struct Prefs {
     languages: Vec<LanguageInfo>,
     accent: String,
     accents: Vec<&'static str>,
+    // whether the first-run tools banner has already been dismissed
+    setup_seen: bool,
 }
 
 #[derive(Serialize, Debug, PartialEq)]
@@ -212,6 +217,7 @@ fn prefs_of(config: &Config) -> Prefs {
         languages: LANGUAGES.iter().map(|(code, name, _)| LanguageInfo { code, name }).collect(),
         accent: config.accent.clone().unwrap_or_else(|| ACCENTS[0].to_string()),
         accents: ACCENTS.to_vec(),
+        setup_seen: config.setup_seen,
     }
 }
 
@@ -234,6 +240,12 @@ pub fn set_language(value: String) -> Result<(), String> {
 pub fn set_accent(value: String) -> Result<(), String> {
     let accent = check_accent(&value)?;
     update(|config| config.accent = Some(accent))
+}
+
+// Remembers that the first-run tools banner was dismissed, so it is not shown again.
+#[tauri::command]
+pub fn mark_setup_seen() -> Result<(), String> {
+    update(|config| config.setup_seen = true)
 }
 
 #[tauri::command]

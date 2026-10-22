@@ -174,7 +174,7 @@ const ARCHIVOS_DEMO = {
   pdf: "/demo/documento.pdf",
 };
 // Fake language and color of demo mode (?accent=blue tries a color at startup)
-const PREFS_DEMO = { language: "auto", accent: params.get("accent") || "orange" };
+const PREFS_DEMO = { language: "auto", accent: params.get("accent") || "orange", setup_seen: false };
 
 // Fake settings of demo mode (same shape as get_config)
 const CONFIG_DEMO = [
@@ -258,6 +258,47 @@ function ondaDemo(cubos) {
   return onda;
 }
 
+// Fake external-tool status + a simulated silent install for demo mode
+const HERRAMIENTAS_DEMO = [
+  { key: "ffmpeg", winget: "Gyan.FFmpeg", manual_url: null, present: true, essential: true },
+  { key: "imagemagick", winget: "ImageMagick.ImageMagick", manual_url: null, present: true, essential: true },
+  { key: "pandoc", winget: "JohnMacFarlane.Pandoc", manual_url: null, present: false, essential: false },
+  { key: "libreoffice", winget: "TheDocumentFoundation.LibreOffice", manual_url: null, present: false, essential: false },
+  { key: "sevenzip", winget: "7zip.7zip", manual_url: null, present: true, essential: false },
+  { key: "poppler", winget: "oschwartz10612.Poppler", manual_url: null, present: false, essential: false },
+  { key: "ghostscript", winget: null, manual_url: "https://ghostscript.com/releases/gsdnld.html", present: false, essential: false },
+];
+let demoInstallCb = null;
+let demoInstallCancel = false;
+function demoEmit(key, phase, line, index, total) {
+  if (demoInstallCb) demoInstallCb({ key, phase, line, index, total });
+}
+async function instalarDemo(keys) {
+  demoInstallCancel = false;
+  const list = HERRAMIENTAS_DEMO.filter((h) => keys.includes(h.key));
+  const total = list.length;
+  for (let i = 0; i < total; i++) {
+    const h = list[i];
+    if (demoInstallCancel) {
+      demoEmit(h.key, "cancelled", "", i, total);
+      break;
+    }
+    demoEmit(h.key, "start", "", i, total);
+    for (const paso of ["Downloading", "Installing", "Verifying"]) {
+      await esperar(500);
+      if (demoInstallCancel) break;
+      demoEmit(h.key, "log", paso + " " + h.winget, i, total);
+    }
+    if (demoInstallCancel) {
+      demoEmit(h.key, "cancelled", "", i, total);
+      break;
+    }
+    await esperar(250);
+    h.present = true;
+    demoEmit(h.key, "done", "", i, total);
+  }
+}
+
 const api = demo
   ? {
       initial_paths: async () => [],
@@ -319,6 +360,20 @@ const api = demo
       },
       convert_many: convertirVariosDemo,
       take_warnings: async () => [],
+      get_tool_status: async () => HERRAMIENTAS_DEMO.map((h) => ({ ...h })),
+      install_tools: (keys) => instalarDemo(keys),
+      cancel_install: async () => {
+        demoInstallCancel = true;
+      },
+      mark_setup_seen: async () => {
+        PREFS_DEMO.setup_seen = true;
+      },
+      on_install_progress: async (cb) => {
+        demoInstallCb = cb;
+        return () => {
+          demoInstallCb = null;
+        };
+      },
       cancel: async () => {},
       quit: async () => {},
     }
@@ -350,6 +405,11 @@ const api = demo
       convert: (path, format) => tauri.core.invoke("convert", { path, format }),
       convert_many: (paths, format) => tauri.core.invoke("convert_many", { paths, format }),
       take_warnings: () => tauri.core.invoke("take_warnings"),
+      get_tool_status: () => tauri.core.invoke("get_tool_status"),
+      install_tools: (keys) => tauri.core.invoke("install_tools", { keys }),
+      cancel_install: () => tauri.core.invoke("cancel_install"),
+      mark_setup_seen: () => tauri.core.invoke("mark_setup_seen"),
+      on_install_progress: (alProgreso) => tauri.event.listen("install-progress", (e) => alProgreso(e.payload)),
       cancel: () => tauri.core.invoke("cancel"),
       quit: () => tauri.core.invoke("quit"),
     };
@@ -403,6 +463,81 @@ function mostrarInicio() {
   soltado = false;
   cargando = null;
   mostrarVista("inicio");
+}
+
+// ---------- First-run tools banner ----------
+
+// Brand names are not translated; the descriptions and UI strings are (see i18n).
+const NOMBRES_HERR = {
+  ffmpeg: "FFmpeg",
+  imagemagick: "ImageMagick",
+  pandoc: "pandoc",
+  libreoffice: "LibreOffice",
+  sevenzip: "7-Zip",
+  poppler: "Poppler",
+  ghostscript: "Ghostscript",
+};
+
+// Shows the banner on the home screen when some tool is missing and it has not been dismissed yet.
+async function iniciarAvisoHerramientas() {
+  try {
+    const [prefs, estado] = await Promise.all([api.get_prefs(), api.get_tool_status()]);
+    const faltan = estado.filter((h) => !h.present);
+    if (prefs.setup_seen || faltan.length === 0) return;
+    pintarAviso(faltan);
+    $("aviso-herr").hidden = false;
+  } catch (e) {
+    /* the banner is optional: if the status call fails, the app still works */
+  }
+}
+
+// Fills the banner with the missing tools; hides the auto-install button when none are winget-installable.
+function pintarAviso(faltan) {
+  $("aviso-herr-lista").replaceChildren(...faltan.map((h) => crear("li", "", NOMBRES_HERR[h.key] || h.key)));
+  $("aviso-herr-progreso").hidden = true;
+  const instalable = faltan.some((h) => h.winget);
+  const boton = $("aviso-herr-instalar");
+  boton.hidden = !instalable;
+  boton.disabled = false;
+  $("aviso-herr-luego").disabled = false;
+  $("aviso-herr-texto").textContent = instalable ? t("tools.missing") : t("tools.manualOnly");
+  $("aviso-herr-instalar").textContent = t("tools.installAll");
+  $("aviso-herr-luego").textContent = t("tools.later");
+}
+
+async function instalarDesdeAviso() {
+  const estado = await api.get_tool_status();
+  const faltan = estado.filter((h) => !h.present && h.winget).map((h) => h.key);
+  if (faltan.length === 0) return;
+  const progreso = $("aviso-herr-progreso");
+  progreso.hidden = false;
+  progreso.textContent = t("tools.installing");
+  $("aviso-herr-instalar").disabled = true;
+  $("aviso-herr-luego").disabled = true;
+  const quitar = await api.on_install_progress((ev) => {
+    const nombre = NOMBRES_HERR[ev.key] || ev.key;
+    if (ev.phase === "start") progreso.textContent = t("tools.installingOf", { name: nombre, index: ev.index + 1, total: ev.total });
+    else if (ev.phase === "log" && ev.line) progreso.textContent = ev.line;
+    else if (ev.phase === "error") progreso.textContent = t("tools.failedOf", { name: nombre });
+  });
+  try {
+    await api.install_tools(faltan);
+  } catch (e) {
+    progreso.textContent = sinCodigo(e);
+  } finally {
+    if (quitar) quitar();
+  }
+  const tras = await api.get_tool_status().catch(() => []);
+  const faltanTras = tras.filter((h) => !h.present);
+  if (faltanTras.length === 0) $("aviso-herr").hidden = true;
+  else pintarAviso(faltanTras);
+}
+
+async function descartarAviso() {
+  try {
+    await api.mark_setup_seen();
+  } catch (e) {}
+  $("aviso-herr").hidden = true;
 }
 
 // ---------- Rueda ----------
@@ -965,6 +1100,8 @@ async function abrirAjustes() {
       const f = {
         get_config: api.get_config, set_formats: api.set_formats, reset_formats: api.reset_formats,
         get_prefs: api.get_prefs, set_language: api.set_language, set_accent: api.set_accent,
+        get_tool_status: api.get_tool_status, install_tools: api.install_tools, cancel_install: api.cancel_install,
+        on_install_progress: api.on_install_progress,
       };
       cambio = await window.Ajustes.abrir({ contenedor, api: f, alCambiarIdioma: cambiarIdioma });
     }
@@ -1198,6 +1335,8 @@ async function iniciar() {
   await aplicarAcentoGuardado();
   document.addEventListener("mousemove", alMoverRaton);
   $("ajustes").addEventListener("click", abrirAjustes);
+  $("aviso-herr-instalar").addEventListener("click", instalarDesdeAviso);
+  $("aviso-herr-luego").addEventListener("click", descartarAviso);
   document.addEventListener("click", alHacerClic);
   document.addEventListener("keydown", alPulsarTecla);
   $("rueda").addEventListener("mouseleave", () => {
@@ -1219,6 +1358,7 @@ async function iniciar() {
   } finally {
     // The window is always shown: if something fails earlier, it would stay invisible
     mostrarVentana();
+    iniciarAvisoHerramientas();
   }
 }
 

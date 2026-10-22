@@ -336,6 +336,25 @@ pub(crate) fn install_hint(apt_names: &str) -> String {
 // find soffice/7z even though they are installed, so those conversions silently vanish.
 #[cfg(windows)]
 fn known_install_paths(name: &str) -> Vec<std::path::PathBuf> {
+    if name == "winget" {
+        // winget is an App Execution Alias under %LOCALAPPDATA%\Microsoft\WindowsApps
+        return std::env::var_os("LOCALAPPDATA")
+            .map(|l| vec![std::path::PathBuf::from(l).join("Microsoft").join("WindowsApps").join("winget.exe")])
+            .unwrap_or_default();
+    }
+    if matches!(name, "gs" | "gswin64c" | "gswin64w") {
+        // Ghostscript installs to C:\Program Files\gs\gs<version>\bin (not reliably on PATH after install)
+        let mut out = Vec::new();
+        if let Ok(rd) = std::fs::read_dir(r"C:\Program Files\gs") {
+            for entry in rd.flatten() {
+                let p = entry.path().join("bin").join(format!("{name}.exe"));
+                if p.is_file() {
+                    out.push(p);
+                }
+            }
+        }
+        return out;
+    }
     let bases: &[&str] = match name {
         "soffice" | "libreoffice" => &[
             r"C:\Program Files\LibreOffice\program",

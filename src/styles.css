@@ -102,6 +102,64 @@ html, body {
 
 .circulo p { margin: 0; font-size: 15px; font-weight: 600; }
 
+/* ---------- First-run tools banner (overlays the circle) ---------- */
+
+.aviso-herr {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 372px;
+  max-width: calc(100% - 24px);
+  background: var(--tarjeta);
+  border-radius: 18px;
+  box-shadow: 0 14px 44px var(--sombra);
+  padding: 20px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  z-index: 6;
+  animation: entrada 150ms ease-out;
+}
+
+.aviso-herr-texto { margin: 0; font-size: 15px; font-weight: 700; text-align: center; color: var(--texto); }
+.aviso-herr-lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+}
+.aviso-herr-lista li {
+  font-size: 12px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--pildora);
+  color: var(--texto);
+}
+.aviso-herr-progreso { margin: 0; min-height: 16px; font-size: 12px; color: var(--suave); text-align: center; word-break: break-word; }
+.aviso-herr-botones { display: flex; gap: 10px; justify-content: center; }
+.aviso-herr-primario,
+.aviso-herr-secundario {
+  appearance: none;
+  border: 0;
+  border-radius: 999px;
+  padding: 8px 16px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.aviso-herr-primario { background: var(--naranja); color: #fff; }
+.aviso-herr-primario:hover:not(:disabled) { background: var(--naranja-claro); }
+.aviso-herr-primario:disabled { opacity: 0.6; cursor: default; }
+.aviso-herr-secundario { background: var(--pildora); color: var(--suave); }
+.aviso-herr-secundario:hover:not(:disabled) { color: var(--texto); }
+.aviso-herr-secundario:disabled { opacity: 0.5; cursor: default; }
+
 /* ---------- Rueda ---------- */
 
 #rueda {

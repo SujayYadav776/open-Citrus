@@ -136,10 +136,30 @@ fn output_path(src: &Path, tool: &str) -> std::path::PathBuf {
     unique_path(folder, &format!("{} ({})", get_stem(src), suffix_of(tool)), &ext)
 }
 
+// Characters a file name must never contain: path separators, the drive/alternate-stream colon,
+// globbing and the rest of the Windows-forbidden set, plus any control character. Rejecting the
+// separators and ':' means the resolved output can never escape the source folder (unique_path
+// joins this name under the original's parent).
+fn nombre_prohibido(name: &str) -> bool {
+    name.chars().any(|c| matches!(c, '\\' | '/' | ':' | '*' | '?' | '"' | '<' | '>' | '|') || c.is_control())
+}
+
+// Windows reserves these device names regardless of case or extension (CON, NUL, COM1.., LPT1..).
+fn nombre_reservado(name: &str) -> bool {
+    const RESERVED: [&str; 22] = [
+        "CON", "PRN", "AUX", "NUL",
+        "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9",
+        "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
+    ];
+    let stem = name.split('.').next().unwrap_or("").to_ascii_uppercase();
+    RESERVED.contains(&stem.as_str())
+}
+
 // Name the user typed in the editor (optional `nombre` field of `params`), without extension.
 // Returns Ok(None) if there is no name; if there is one, it is cleaned: no spaces at the ends and without the
 // extension of the original if they typed it (the output always carries that of the original). Empty
-// names, names with "/" or control characters, "." and "..", and names that are too long are rejected.
+// names, names that are too long, and names containing a forbidden character (\ / : * ? " < > | or a control
+// char), a reserved Windows device name, "." / ".." or a trailing '.' are rejected.
 fn custom_name(params: Option<&Value>, ext: &str) -> Result<Option<String>, String> {
     let Some(raw) = params.and_then(|p| p.get("nombre")).and_then(Value::as_str) else {
         return Ok(None);
@@ -152,8 +172,11 @@ fn custom_name(params: Option<&Value>, ext: &str) -> Result<Option<String>, Stri
     if name.is_empty() {
         return Err(tr("Type a name for the new file", "Escribe un nombre para el archivo nuevo"));
     }
-    if name == "." || name == ".." || name.contains('/') || name.chars().any(char::is_control) {
-        return Err(tr("The name is not valid: it cannot contain \"/\" or be \".\" or \"..\"", "El nombre no es válido: no puede llevar «/» ni ser «.» o «..»"));
+    if nombre_prohibido(name) || nombre_reservado(name) || name == "." || name == ".." || name.ends_with('.') {
+        return Err(tr(
+            "The name is not valid: it cannot contain \\ / : * ? \" < > | or be \".\" or \"..\"",
+            "El nombre no es válido: no puede llevar \\ / : * ? \" < > | ni ser «.» o «..»",
+        ));
     }
     // File systems limit the name to 255 bytes: room is left for " 2" and the extension
     if name.len() + ext.len() > 230 {
@@ -917,8 +940,14 @@ mod tests {
         assert_eq!(n(json!({ "nombre": "mi recorte.JPG" }), "jpg"), Ok(Some("mi recorte".into())));
         assert_eq!(n(json!({ "nombre": "foto.v2" }), "jpg"), Ok(Some("foto.v2".into())));
         assert_eq!(n(json!({ "nombre": "ñandú – 日本" }), "png"), Ok(Some("ñandú – 日本".into())));
+        // A dot in the middle is fine (only a trailing '.' is stripped by Win32)
+        assert_eq!(n(json!({ "nombre": "a.b.c" }), "jpg"), Ok(Some("a.b.c".into())));
         // Rechazos
-        for malo in ["", "   ", ".jpg", ".", "..", "a/b", "../x", "a\nb", "a\u{0}b"] {
+        for malo in [
+            "", "   ", ".jpg", ".", "..", "../x", "a\nb", "a\u{0}b",
+            "a/b", "a\\b", "a:b", "a*b", "a?b", "a\"b", "a<b", "a>b", "a|b",
+            "CON", "nul.txt", "com1", "LPT9.log", "foo.",
+        ] {
             assert!(n(json!({ "nombre": malo }), "jpg").is_err(), "{malo:?}");
         }
         assert!(n(json!({ "nombre": "x".repeat(300) }), "jpg").is_err());
@@ -1810,7 +1839,7 @@ mod tests {
         assert_eq!(image_args("bmp", "compress", None, None, "a", "b").unwrap_err(), "El formato BMP no admite compresión");
         let name = |n: &str| custom_name(Some(&json!({ "nombre": n })), "jpg").unwrap_err();
         assert_eq!(name("  "), "Escribe un nombre para el archivo nuevo");
-        assert_eq!(name("a/b"), "El nombre no es válido: no puede llevar «/» ni ser «.» o «..»");
+        assert_eq!(name("a/b"), "El nombre no es válido: no puede llevar \\ / : * ? \" < > | ni ser «.» o «..»");
         assert_eq!(name(&"x".repeat(300)), "El nombre es demasiado largo");
         let list = tools_of(Path::new("a.png"));
         let rotate = list.iter().find(|t| t.id == "rotate").unwrap();
@@ -1818,7 +1847,7 @@ mod tests {
         assert_eq!(check_option(rotate, Some("up")), Err("Opción no válida".to_string()));
         set_lang(Lang::En);
         assert_eq!(err(json!({ "start": 1 })), "\"end\" is missing or is not a number");
-        assert_eq!(name("a/b"), "The name is not valid: it cannot contain \"/\" or be \".\" or \"..\"");
+        assert_eq!(name("a/b"), "The name is not valid: it cannot contain \\ / : * ? \" < > | or be \".\" or \"..\"");
         assert_eq!(name("  "), "Type a name for the new file");
         assert_eq!(name(&"x".repeat(300)), "The name is too long");
     }

@@ -50,7 +50,7 @@
   "resized": "redimensionado",
   "no audio": "sem áudio",
   "Type a name for the new file": "Digite um nome para o novo arquivo",
-  "The name is not valid: it cannot contain \"/\" or be \".\" or \"..\"": "O nome não é válido: não pode conter \"/\" nem ser \".\" ou \"..\"",
+  "The name is not valid: it cannot contain \\ / : * ? \" < > | or be \".\" or \"..\"": "O nome não é válido: não pode conter \\ / : * ? \" < > | nem ser \".\" ou \"..\"",
   "The name is too long": "O nome é longo demais",
   "Invalid option": "Opção inválida",
   "Choose an option": "Escolha uma opção",

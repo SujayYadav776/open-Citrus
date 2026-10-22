@@ -2,8 +2,12 @@ name: Tests
 
 on:
   push:
-    branches: [main]
+    # `main` is a stale copy of upstream; the active branch is `windows-port`.
+    # Both are listed so a merge to either still runs the suite.
+    branches: [main, windows-port]
   pull_request:
+  # Lets a maintainer run the suite on demand from the Actions tab.
+  workflow_dispatch:
 
 jobs:
   cargo-test:

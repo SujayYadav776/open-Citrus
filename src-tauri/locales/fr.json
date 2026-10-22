@@ -89,5 +89,6 @@
   "The installer stopped unexpectedly: {error}": "L'installateur s'est arrêté inopinément : {error}",
   "Automatic install is only available on Windows": "L'installation automatique n'est disponible que sous Windows",
   "winget is not available on this system": "winget n'est pas disponible sur ce système",
-  "Could not start the installer: {error}": "Impossible de lancer l'installateur : {error}"
+  "Could not start the installer: {error}": "Impossible de lancer l'installateur : {error}",
+  "An installation is already running": "Une installation est déjà en cours"
 }

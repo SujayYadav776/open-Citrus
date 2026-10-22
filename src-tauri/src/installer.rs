@@ -79,6 +79,17 @@ pub fn get_tool_status() -> Vec<ToolStatus> {
 // "Stop" can terminate just that process, letting any installer it already launched finish).
 static INSTALL_CANCEL: AtomicBool = AtomicBool::new(false);
 static INSTALL_PID: AtomicU32 = AtomicU32::new(0);
+// One install at a time: the atomics above are process-global, so a second concurrent batch would
+// clobber the cancel flag and the tracked pid. INSTALL_RUNNING serialises them.
+static INSTALL_RUNNING: AtomicBool = AtomicBool::new(false);
+
+// Clears INSTALL_RUNNING when it goes out of scope, on any return path (including a panic unwind).
+struct InstallGuard;
+impl Drop for InstallGuard {
+    fn drop(&mut self) {
+        INSTALL_RUNNING.store(false, Ordering::SeqCst);
+    }
+}
 
 #[tauri::command]
 pub fn cancel_install() {
@@ -110,6 +121,12 @@ pub async fn install_tools(app: AppHandle, keys: Vec<String>) -> Result<(), Stri
 }
 
 fn install_blocking(app: AppHandle, keys: Vec<String>) -> Result<(), String> {
+    // One batch at a time: the cancel/pid atomics are process-global, so a second concurrent
+    // install would corrupt the first. Claim the slot; if it is taken, reject rather than interleave.
+    if INSTALL_RUNNING.swap(true, Ordering::SeqCst) {
+        return Err(tr!("An installation is already running", "Ya hay una instalación en curso"));
+    }
+    let _guard = InstallGuard;
     #[cfg(not(windows))]
     {
         let _ = (app, keys);

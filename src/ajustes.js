@@ -260,6 +260,7 @@
           if (s === "installing") return [tr("tools.stInstalling"), "aj-herr-est aj-herr-est-inst"];
           if (s === "done") return [tr("tools.stDone"), "aj-herr-est aj-herr-est-ok"];
           if (s === "failed") return [tr("tools.stFailed"), "aj-herr-est aj-herr-est-fail"];
+          if (s === "timeout") return [tr("tools.stTimeout"), "aj-herr-est aj-herr-est-fail"];
           if (s === "cancelled") return [tr("tools.cancelled"), "aj-herr-est aj-herr-est-fail"];
           return [tr("tools.stWaiting"), "aj-herr-est aj-herr-est-wait"];
         }
@@ -284,6 +285,7 @@
           const info = el("div", "aj-herr-info");
           info.append(el("span", "aj-herr-nombre", NOMBRES[h.key] || h.key));
           if (!instalando && tr("tools.desc." + h.key) !== "tools.desc." + h.key) info.append(el("span", "aj-herr-desc", tr("tools.desc." + h.key)));
+          if (!h.present && h.needs_admin) info.append(el("span", "aj-herr-admin", tr("tools.needsAdmin")));
           fila.append(info);
           const [chip, cls] = chipEstado(h);
           fila.append(el("span", cls, chip));
@@ -345,6 +347,10 @@
           dibujar();
         } else if (ev.phase === "error") {
           estadoInstal.status[ev.key] = "failed";
+          dibujar();
+        } else if (ev.phase === "timeout") {
+          estadoInstal.status[ev.key] = "timeout";
+          estadoInstal.linea = tr("tools.timedOutLine", { name: NOMBRES[ev.key] || ev.key });
           dibujar();
         } else if (ev.phase === "cancelled") {
           estadoInstal.status[ev.key] = "cancelled";

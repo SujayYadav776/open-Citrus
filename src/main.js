@@ -260,13 +260,13 @@ function ondaDemo(cubos) {
 
 // Fake external-tool status + a simulated silent install for demo mode
 const HERRAMIENTAS_DEMO = [
-  { key: "ffmpeg", winget: "Gyan.FFmpeg", manual_url: null, present: true, essential: true },
-  { key: "imagemagick", winget: "ImageMagick.ImageMagick", manual_url: null, present: true, essential: true },
-  { key: "pandoc", winget: "JohnMacFarlane.Pandoc", manual_url: null, present: false, essential: false },
-  { key: "libreoffice", winget: "TheDocumentFoundation.LibreOffice", manual_url: null, present: false, essential: false },
-  { key: "sevenzip", winget: "7zip.7zip", manual_url: null, present: true, essential: false },
-  { key: "poppler", winget: "oschwartz10612.Poppler", manual_url: null, present: false, essential: false },
-  { key: "ghostscript", winget: null, manual_url: "https://ghostscript.com/releases/gsdnld.html", present: false, essential: false },
+  { key: "ffmpeg", winget: "Gyan.FFmpeg", manual_url: null, present: true, essential: true, needs_admin: false },
+  { key: "imagemagick", winget: "ImageMagick.ImageMagick", manual_url: null, present: true, essential: true, needs_admin: true },
+  { key: "pandoc", winget: "JohnMacFarlane.Pandoc", manual_url: null, present: false, essential: false, needs_admin: true },
+  { key: "libreoffice", winget: "TheDocumentFoundation.LibreOffice", manual_url: null, present: false, essential: false, needs_admin: true },
+  { key: "sevenzip", winget: "7zip.7zip", manual_url: null, present: true, essential: false, needs_admin: true },
+  { key: "poppler", winget: "oschwartz10612.Poppler", manual_url: null, present: false, essential: false, needs_admin: false },
+  { key: "ghostscript", winget: null, manual_url: "https://ghostscript.com/releases/gsdnld.html", present: false, essential: false, needs_admin: false },
 ];
 let demoInstallCb = null;
 let demoInstallCancel = false;
@@ -507,6 +507,7 @@ function estadoTextoAviso(h) {
     if (s === "installing") return t("tools.stInstalling");
     if (s === "done") return t("tools.stDone");
     if (s === "failed") return t("tools.stFailed");
+    if (s === "timeout") return t("tools.stTimeout");
     if (s === "cancelled") return t("tools.cancelled");
     return t("tools.stWaiting");
   }
@@ -520,7 +521,9 @@ function pintarAviso() {
   $("aviso-herr-lista").replaceChildren(
     ...items.map((h) => {
       const li = crear("li", "aviso-herr-item");
-      li.append(crear("span", "aviso-herr-nom", NOMBRES_HERR[h.key] || h.key));
+      const nom = crear("span", "aviso-herr-nom", NOMBRES_HERR[h.key] || h.key);
+      if (!instalando && h.needs_admin) nom.append(crear("span", "aviso-herr-admin", " · " + t("tools.needsAdmin")));
+      li.append(nom);
       li.append(crear("span", "aviso-herr-est", estadoTextoAviso(h)));
       return li;
     })
@@ -560,6 +563,10 @@ async function instalarDesdeAviso() {
       pintarAviso();
     } else if (ev.phase === "error") {
       avisoEstado.status[ev.key] = "failed";
+      pintarAviso();
+    } else if (ev.phase === "timeout") {
+      avisoEstado.status[ev.key] = "timeout";
+      avisoEstado.linea = t("tools.timedOutLine", { name: NOMBRES_HERR[ev.key] || ev.key });
       pintarAviso();
     } else if (ev.phase === "cancelled") {
       avisoEstado.status[ev.key] = "cancelled";

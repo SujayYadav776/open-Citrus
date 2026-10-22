@@ -84,6 +84,7 @@
 .aj-herr-info { display: flex; flex-direction: column; gap: 1px; flex: 1; min-width: 0; }
 .aj-herr-nombre { font-size: 13px; font-weight: 800; }
 .aj-herr-desc { font-size: 11px; color: var(--ed-suave); }
+.aj-herr-admin { font-size: 11px; font-weight: 700; color: #b5540f; }
 .aj-herr-est { font-size: 11px; font-weight: 800; padding: 2px 9px; border-radius: 999px; white-space: nowrap; }
 .aj-herr-est-ok { background: rgba(46, 158, 91, 0.16); color: #1f7a45; }
 .aj-herr-est-fail { background: rgba(229, 56, 59, 0.14); color: #b23b3e; }

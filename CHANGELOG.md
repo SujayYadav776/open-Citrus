@@ -1,5 +1,36 @@
 # Release notes
 
+## v1.2.1 - Citrus (Windows)
+
+Patch release hardening the in-app tools installer (fixes installs that appear to hang at
+"Preparing to install", e.g. LibreOffice).
+
+### What's new
+
+- **Elevation can proceed.** Dropped `--disable-interactivity` from the winget command, so
+  machine-wide tools (LibreOffice, 7-Zip, ImageMagick, pandoc) can properly raise their
+  admin/UAC prompt instead of stalling.
+- **Per-tool admin hint.** Machine-wide tools now show a "Needs admin; may take a few
+  minutes" hint in both the first-run banner and Settings → Converter tools, so a slow
+  LibreOffice install is expected rather than mistaken for a freeze.
+- **Timeout watchdog.** Each package has a time budget (30 min for the large MSIs, 15 min
+  for the rest). If one runs past it, the in-flight installer is stopped and reported as
+  **"Timed out — try installing it manually"** instead of hanging forever; the batch then
+  continues.
+
+### Release artifacts
+
+| File | Size | SHA-256 |
+|---|---|---|
+| `Citrus_1.2.1_x64-setup.exe` (NSIS installer) | 1,671,661 B (1.59 MiB) | `f5c24edd0b41a4d06bddcb8ffc597ffa23904c318cdfebbb38eca54e1f17e129` |
+| `citrus.exe` (portable, x64) | 5,158,912 B | `b01bf7ca82bfee267ebcf3913c0ea33267e1774a72f546e02559e02c27c829c1` |
+
+### Verification
+
+- 124/124 tests pass; all frontend JS parses.
+- Timeout watchdog and admin hint verified to compile and render; the per-package step list
+  now also shows the Timed-out state.
+
 ## v1.2.0 - Citrus (Windows)
 
 Improves the in-app tools installer introduced in v1.1.0 so a multi-minute

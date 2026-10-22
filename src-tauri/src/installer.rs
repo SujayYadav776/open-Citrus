@@ -24,18 +24,22 @@ pub struct ToolSpec {
     manual_url: Option<&'static str>,
     programs: &'static [&'static str],
     essential: bool,
+    // machine-wide MSI: winget will request elevation (UAC) and it can take several minutes
+    needs_admin: bool,
+    // per-package watchdog budget; if exceeded the in-flight installer is stopped and reported
+    timeout_secs: u64,
 }
 
 // Order matters: the essentials first, then the ones that unlock extra formats.
 const TOOLS: [ToolSpec; 7] = [
-    ToolSpec { key: "ffmpeg", winget: Some("Gyan.FFmpeg"), manual_url: None, programs: &["ffmpeg", "ffprobe"], essential: true },
-    ToolSpec { key: "imagemagick", winget: Some("ImageMagick.ImageMagick"), manual_url: None, programs: &["magick"], essential: true },
-    ToolSpec { key: "pandoc", winget: Some("JohnMacFarlane.Pandoc"), manual_url: None, programs: &["pandoc"], essential: false },
-    ToolSpec { key: "libreoffice", winget: Some("TheDocumentFoundation.LibreOffice"), manual_url: None, programs: &["soffice", "libreoffice"], essential: false },
-    ToolSpec { key: "sevenzip", winget: Some("7zip.7zip"), manual_url: None, programs: &["7z", "7za", "7zz"], essential: false },
-    ToolSpec { key: "poppler", winget: Some("oschwartz10612.Poppler"), manual_url: None, programs: &["pdftoppm", "pdftotext"], essential: false },
+    ToolSpec { key: "ffmpeg", winget: Some("Gyan.FFmpeg"), manual_url: None, programs: &["ffmpeg", "ffprobe"], essential: true, needs_admin: false, timeout_secs: 900 },
+    ToolSpec { key: "imagemagick", winget: Some("ImageMagick.ImageMagick"), manual_url: None, programs: &["magick"], essential: true, needs_admin: true, timeout_secs: 1800 },
+    ToolSpec { key: "pandoc", winget: Some("JohnMacFarlane.Pandoc"), manual_url: None, programs: &["pandoc"], essential: false, needs_admin: true, timeout_secs: 1800 },
+    ToolSpec { key: "libreoffice", winget: Some("TheDocumentFoundation.LibreOffice"), manual_url: None, programs: &["soffice", "libreoffice"], essential: false, needs_admin: true, timeout_secs: 1800 },
+    ToolSpec { key: "sevenzip", winget: Some("7zip.7zip"), manual_url: None, programs: &["7z", "7za", "7zz"], essential: false, needs_admin: true, timeout_secs: 1800 },
+    ToolSpec { key: "poppler", winget: Some("oschwartz10612.Poppler"), manual_url: None, programs: &["pdftoppm", "pdftotext"], essential: false, needs_admin: false, timeout_secs: 900 },
     // Ghostscript is not on winget; it must be installed from the official page.
-    ToolSpec { key: "ghostscript", winget: None, manual_url: Some("https://ghostscript.com/releases/gsdnld.html"), programs: &["gs", "gswin64c"], essential: false },
+    ToolSpec { key: "ghostscript", winget: None, manual_url: Some("https://ghostscript.com/releases/gsdnld.html"), programs: &["gs", "gswin64c"], essential: false, needs_admin: false, timeout_secs: 900 },
 ];
 
 #[derive(Serialize)]
@@ -45,6 +49,7 @@ pub struct ToolStatus {
     manual_url: Option<&'static str>,
     present: bool,
     essential: bool,
+    needs_admin: bool,
 }
 
 // The payload streamed to the interface while installing: which tool, what phase, and a line of
@@ -66,7 +71,7 @@ fn present(programs: &[&str]) -> bool {
 pub fn get_tool_status() -> Vec<ToolStatus> {
     TOOLS
         .iter()
-        .map(|t| ToolStatus { key: t.key, winget: t.winget, manual_url: t.manual_url, present: present(t.programs), essential: t.essential })
+        .map(|t| ToolStatus { key: t.key, winget: t.winget, manual_url: t.manual_url, present: present(t.programs), essential: t.essential, needs_admin: t.needs_admin })
         .collect()
 }
 
@@ -114,6 +119,8 @@ fn install_blocking(app: AppHandle, keys: Vec<String>) -> Result<(), String> {
     {
         use std::io::{BufRead, BufReader};
         use std::process::{Command, Stdio};
+        use std::sync::Arc;
+        use std::time::{Duration, Instant};
 
         let winget = find_program("winget").ok_or_else(|| tr!("winget is not available on this system", "winget no está disponible en este sistema"))?;
         let specs: Vec<&ToolSpec> = TOOLS.iter().filter(|t| t.winget.is_some() && keys.iter().any(|k| k == t.key)).collect();
@@ -127,9 +134,10 @@ fn install_blocking(app: AppHandle, keys: Vec<String>) -> Result<(), String> {
             }
             emit(&app, spec.key, "start", "", index, total);
 
+            let timeout = spec.timeout_secs;
             let mut command = Command::new(&winget);
             command
-                .args(["install", "--id", spec.winget.unwrap(), "--exact", "--silent", "--accept-package-agreements", "--accept-source-agreements", "--disable-interactivity"])
+                .args(["install", "--id", spec.winget.unwrap(), "--exact", "--silent", "--accept-package-agreements", "--accept-source-agreements"])
                 .stdin(Stdio::null())
                 .stdout(Stdio::piped())
                 .stderr(Stdio::piped());
@@ -141,7 +149,26 @@ fn install_blocking(app: AppHandle, keys: Vec<String>) -> Result<(), String> {
                     continue;
                 }
             };
-            INSTALL_PID.store(child.id(), Ordering::SeqCst);
+            let pid = child.id();
+            INSTALL_PID.store(pid, Ordering::SeqCst);
+
+            // Watchdog: if this package runs past its budget, stop the in-flight winget so the
+            // batch cannot hang forever on a stalled download or an unanswered elevation prompt.
+            let finished = Arc::new(AtomicBool::new(false));
+            let timed_out = Arc::new(AtomicBool::new(false));
+            {
+                let (finished, timed_out) = (Arc::clone(&finished), Arc::clone(&timed_out));
+                std::thread::spawn(move || {
+                    let deadline = Instant::now() + Duration::from_secs(timeout);
+                    while !finished.load(Ordering::SeqCst) && Instant::now() < deadline {
+                        std::thread::sleep(Duration::from_millis(500));
+                    }
+                    if !finished.load(Ordering::SeqCst) {
+                        timed_out.store(true, Ordering::SeqCst);
+                        kill_pid(pid);
+                    }
+                });
+            }
 
             // winget writes progress to stdout and occasional warnings to stderr; drain both at the
             // same time (stderr on its own thread) so neither pipe can fill and block the child.
@@ -164,22 +191,27 @@ fn install_blocking(app: AppHandle, keys: Vec<String>) -> Result<(), String> {
                         emit(&app, spec.key, "log", line, index, total);
                     }
                     if INSTALL_CANCEL.load(Ordering::SeqCst) {
-                        kill_pid(child.id());
+                        kill_pid(pid);
                         break;
                     }
                 }
             }
             let status = child.wait();
+            finished.store(true, Ordering::SeqCst);
             if let Some(t) = err_thread {
                 let _ = t.join();
             }
             INSTALL_PID.store(0, Ordering::SeqCst);
 
+            let ok = matches!(&status, Ok(s) if s.success());
             if INSTALL_CANCEL.load(Ordering::SeqCst) {
                 emit(&app, spec.key, "cancelled", "", index, total);
                 break;
             }
-            let ok = matches!(&status, Ok(s) if s.success());
+            if timed_out.load(Ordering::SeqCst) && !ok {
+                emit(&app, spec.key, "timeout", "", index, total);
+                continue;
+            }
             emit(&app, spec.key, if ok { "done" } else { "error" }, "", index, total);
         }
         Ok(())

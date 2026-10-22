@@ -1,4 +1,5 @@
 use crate::lang::tr;
+use crate::tr;
 use serde::Serialize;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::Ordering;
@@ -27,8 +28,16 @@ fn paths_from_args(args: &[String]) -> Vec<PathBuf> {
     paths
 }
 
-// Adds up the size of a whole folder without following symbolic links
-fn dir_size(dir: &Path) -> u64 {
+// Adds up the size of a whole folder without following symbolic links. Depth is capped so a
+// pathological tree or a Windows junction that points at an ancestor cannot recurse forever and
+// overflow the stack (symlink_metadata does not follow real symlinks, but junctions still report
+// as directories, so the depth guard is the safety net).
+const MAX_DIR_DEPTH: u32 = 64;
+
+fn dir_size(dir: &Path, depth: u32) -> u64 {
+    if depth >= MAX_DIR_DEPTH {
+        return 0;
+    }
     let mut total = 0;
     let Ok(entries) = std::fs::read_dir(dir) else {
         return 0;
@@ -39,7 +48,7 @@ fn dir_size(dir: &Path) -> u64 {
             continue;
         };
         if meta.is_dir() {
-            total += dir_size(&entry.path());
+            total += dir_size(&entry.path(), depth + 1);
         } else {
             total += meta.len();
         }
@@ -58,7 +67,7 @@ fn info_of(path: &Path) -> Result<FileInfo, String> {
     let is_dir = meta.is_dir();
     Ok(FileInfo {
         name: path.file_name().unwrap_or_default().to_string_lossy().to_string(),
-        size: if is_dir { dir_size(path) } else { meta.len() },
+        size: if is_dir { dir_size(path, 0) } else { meta.len() },
         is_dir,
     })
 }
@@ -82,8 +91,12 @@ pub fn initial_paths() -> Vec<String> {
 }
 
 #[tauri::command]
-pub fn file_info(path: String) -> Result<FileInfo, String> {
-    info_of(Path::new(&path))
+pub async fn file_info(path: String) -> Result<FileInfo, String> {
+    // info_of can walk a whole folder (dir_size): keep it off the main thread so a big drop
+    // does not freeze the UI.
+    tauri::async_runtime::spawn_blocking(move || info_of(Path::new(&path)))
+        .await
+        .map_err(|e| tr!("Internal error: {e}", "Error interno: {e}", e = e))?
 }
 
 #[tauri::command]

@@ -39,16 +39,30 @@ zip/unzip, FLAC).
 - Native cursor placement: the wheel appears exactly at the pointer (verified at 150% DPI);
   the Wayland enlargement workaround is kept only as a Linux fallback.
 
+### Fixes bundled in this build
+
+Beyond the initial cut, this artifact also carries:
+
+- **Always closable:** a system-tray icon (Open / Quit), close-to-tray on the window's ✕,
+  and Esc / Alt+M to hide or quit — the app can no longer get stuck with no way to close it.
+- **Converters found off PATH:** LibreOffice and 7-Zip are located in their known install
+  directories even when they are not on `PATH`, so document and archive conversions work when
+  the app is launched from Explorer (not just from a dev shell).
+- **No console window:** every child tool (ffmpeg, ImageMagick, 7-Zip, pandoc, LibreOffice,
+  unzip) is spawned with `CREATE_NO_WINDOW`, so no black cmd box flashes during a conversion.
+- **Original icon:** the app icon is the upstream Mandarina mark again.
+
 ### Release artifacts
 
 | File | Size | SHA-256 |
 |---|---|---|
-| `Citrus_0.1.0_x64-setup.exe` (NSIS installer) | 1.61 MiB | `c24baaf602bd4be4aaa4c9242c4918d290828cb2e8a2270946fa999c3a2f881f` |
-| `citrus.exe` (portable, x64) | 5,051,392 B | `6344357411d1814b1c5a5de3284ad483295af08fb64dd0729af47b1f8933afde` |
+| `Citrus_0.1.0_x64-setup.exe` (NSIS installer) | 1,727,031 B (1.65 MiB) | `e23921c9d8f0bdd8545b9604c393f82ea962100c5b0a05b4184be02ee02b7e90` |
+| `citrus.exe` (portable, x64) | 5,179,392 B | `ae212964c366c44de32b7c3d9275c5c7f6024fe38f5beddce05a4f26fee9f195` |
 
 Built with rustc 1.99.1 (MSVC), LTO release profile. The installer performs a per-user
-install to `%LOCALAPPDATA%\Citrus\`, carries the Citrus icon, and bundles the `LICENSE`,
-`NOTICE` and `AUTHORS` files so the MIT notice ships with the app.
+install to `%LOCALAPPDATA%\Citrus\`, carries the app icon (the original Mandarina artwork —
+the product name is Citrus, the mark stays upstream's), and bundles the `LICENSE`, `NOTICE`
+and `AUTHORS` files so the MIT notice ships with the app.
 
 ### Verification
 

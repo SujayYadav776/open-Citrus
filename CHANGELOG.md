@@ -1,5 +1,45 @@
 # Release notes
 
+## v1.1.0 - Citrus (Windows)
+
+Quality release on top of v0.1.0: the app is now always closable, finds its converter
+tools more reliably, no longer flashes a console window, uses the original Mandarina
+artwork, and can install the tools it needs from within the app.
+
+### What's new
+
+- **First-run tools check + one-click installer.** On launch Citrus detects which
+  external tools are present. A home-screen banner (and a new **Converter tools**
+  section in Settings) lists what is missing and installs it with one click through
+  `winget`, streaming progress with Stop and "Copy command" options. Ghostscript,
+  which is not on winget, is offered as a manual download instead.
+- **Converters found off PATH.** LibreOffice, 7-Zip and Ghostscript are located in
+  their known install directories even when not on `PATH`, so document, archive and
+  PDF conversions work when the app is launched from Explorer (not just a dev shell).
+- **No console window.** Every child tool is spawned with `CREATE_NO_WINDOW`, so no
+  black cmd box flashes during a conversion.
+- **Always closable.** A system tray (Open / Quit), close-to-tray on the window's ✕,
+  and Esc / Alt+M to hide or quit.
+- **Original icon.** The app icon is the upstream Mandarina mark again (the product
+  name stays Citrus).
+
+### Release artifacts
+
+| File | Size | SHA-256 |
+|---|---|---|
+| `Citrus_1.1.0_x64-setup.exe` (NSIS installer) | 1,667,673 B (1.59 MiB) | `53708836bac0ebf7cdc07b703180d6ce9bcf8145693ed66383d5434d836f6b87` |
+| `citrus.exe` (portable, x64) | 5,151,232 B | `11fe38639ccd6a1ed9a6e3e4cc087ca4ff2a235f511a306111a79a8c065524f1` |
+
+Per-user install to `%LOCALAPPDATA%\Citrus\`, no admin; bundles the `LICENSE`, `NOTICE`
+and `AUTHORS` files.
+
+### Verification
+
+- 124/124 unit and integration tests pass on Windows.
+- Tools-installer flow verified live: the first-run banner appears when a tool is
+  missing and disappears once it is detected; the Settings section shows per-tool
+  status; a real conversion spawns its tool with no console window.
+
 ## v0.1.0 - Citrus (Windows)
 
 First Citrus release: the Mandarina radial-wheel file converter, ported to and shipped

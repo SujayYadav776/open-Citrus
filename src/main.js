@@ -374,6 +374,8 @@ const api = demo
           demoInstallCb = null;
         };
       },
+      minimize_window: async () => {},
+      set_install_taskbar: async () => {},
       cancel: async () => {},
       quit: async () => {},
     }
@@ -410,6 +412,8 @@ const api = demo
       cancel_install: () => tauri.core.invoke("cancel_install"),
       mark_setup_seen: () => tauri.core.invoke("mark_setup_seen"),
       on_install_progress: (alProgreso) => tauri.event.listen("install-progress", (e) => alProgreso(e.payload)),
+      minimize_window: () => tauri.core.invoke("minimize_window"),
+      set_install_taskbar: (on) => tauri.core.invoke("set_install_taskbar", { on }),
       cancel: () => tauri.core.invoke("cancel"),
       quit: () => tauri.core.invoke("quit"),
     };
@@ -478,59 +482,109 @@ const NOMBRES_HERR = {
   ghostscript: "Ghostscript",
 };
 
+let avisoEstado = null; // { herr:[objs], status:{key:phase}, linea:'' } while installing from the banner
+let avisoFaltan = []; // missing tool objects shown when idle
+
 // Shows the banner on the home screen when some tool is missing and it has not been dismissed yet.
 async function iniciarAvisoHerramientas() {
   try {
     const [prefs, estado] = await Promise.all([api.get_prefs(), api.get_tool_status()]);
     const faltan = estado.filter((h) => !h.present);
     if (prefs.setup_seen || faltan.length === 0) return;
-    pintarAviso(faltan);
+    avisoEstado = null;
+    avisoFaltan = faltan;
+    pintarAviso();
     $("aviso-herr").hidden = false;
   } catch (e) {
     /* the banner is optional: if the status call fails, the app still works */
   }
 }
 
-// Fills the banner with the missing tools; hides the auto-install button when none are winget-installable.
-function pintarAviso(faltan) {
-  $("aviso-herr-lista").replaceChildren(...faltan.map((h) => crear("li", "", NOMBRES_HERR[h.key] || h.key)));
-  $("aviso-herr-progreso").hidden = true;
-  const instalable = faltan.some((h) => h.winget);
-  const boton = $("aviso-herr-instalar");
-  boton.hidden = !instalable;
-  boton.disabled = false;
+// Per-package status text for a banner row (empty when idle / installed).
+function estadoTextoAviso(h) {
+  if (avisoEstado && avisoEstado.status[h.key]) {
+    const s = avisoEstado.status[h.key];
+    if (s === "installing") return t("tools.stInstalling");
+    if (s === "done") return t("tools.stDone");
+    if (s === "failed") return t("tools.stFailed");
+    if (s === "cancelled") return t("tools.cancelled");
+    return t("tools.stWaiting");
+  }
+  return "";
+}
+
+// Renders the banner: a step list (with live per-package status while installing) and the right buttons.
+function pintarAviso() {
+  const instalando = !!avisoEstado;
+  const items = instalando ? avisoEstado.herr : avisoFaltan;
+  $("aviso-herr-lista").replaceChildren(
+    ...items.map((h) => {
+      const li = crear("li", "aviso-herr-item");
+      li.append(crear("span", "aviso-herr-nom", NOMBRES_HERR[h.key] || h.key));
+      li.append(crear("span", "aviso-herr-est", estadoTextoAviso(h)));
+      return li;
+    })
+  );
+  const progreso = $("aviso-herr-progreso");
+  progreso.hidden = !instalando;
+  progreso.textContent = instalando ? avisoEstado.linea : "";
+  const instalable = items.some((h) => h.winget);
+  $("aviso-herr-instalar").hidden = instalando || !instalable;
+  $("aviso-herr-instalar").disabled = false;
+  $("aviso-herr-min").hidden = !instalando;
+  $("aviso-herr-min").textContent = t("tools.minimize");
+  $("aviso-herr-luego").hidden = instalando;
   $("aviso-herr-luego").disabled = false;
-  $("aviso-herr-texto").textContent = instalable ? t("tools.missing") : t("tools.manualOnly");
+  $("aviso-herr-texto").textContent = instalando ? t("tools.installing") : instalable ? t("tools.missing") : t("tools.manualOnly");
   $("aviso-herr-instalar").textContent = t("tools.installAll");
   $("aviso-herr-luego").textContent = t("tools.later");
 }
 
 async function instalarDesdeAviso() {
   const estado = await api.get_tool_status();
-  const faltan = estado.filter((h) => !h.present && h.winget).map((h) => h.key);
+  const faltan = estado.filter((h) => !h.present && h.winget);
   if (faltan.length === 0) return;
-  const progreso = $("aviso-herr-progreso");
-  progreso.hidden = false;
-  progreso.textContent = t("tools.installing");
-  $("aviso-herr-instalar").disabled = true;
-  $("aviso-herr-luego").disabled = true;
+  const keys = faltan.map((h) => h.key);
+  avisoEstado = { herr: faltan, status: {}, linea: "" };
+  keys.forEach((k, i) => (avisoEstado.status[k] = i === 0 ? "installing" : "waiting"));
+  if (api.set_install_taskbar) api.set_install_taskbar(true);
+  pintarAviso();
   const quitar = await api.on_install_progress((ev) => {
-    const nombre = NOMBRES_HERR[ev.key] || ev.key;
-    if (ev.phase === "start") progreso.textContent = t("tools.installingOf", { name: nombre, index: ev.index + 1, total: ev.total });
-    else if (ev.phase === "log" && ev.line) progreso.textContent = ev.line;
-    else if (ev.phase === "error") progreso.textContent = t("tools.failedOf", { name: nombre });
+    if (!avisoEstado) return;
+    if (ev.phase === "start") {
+      avisoEstado.status[ev.key] = "installing";
+      avisoEstado.linea = t("tools.installingOf", { name: NOMBRES_HERR[ev.key] || ev.key, index: ev.index + 1, total: ev.total });
+      pintarAviso();
+    } else if (ev.phase === "done") {
+      avisoEstado.status[ev.key] = "done";
+      pintarAviso();
+    } else if (ev.phase === "error") {
+      avisoEstado.status[ev.key] = "failed";
+      pintarAviso();
+    } else if (ev.phase === "cancelled") {
+      avisoEstado.status[ev.key] = "cancelled";
+      pintarAviso();
+    } else if (ev.phase === "log" && ev.line) {
+      avisoEstado.linea = ev.line;
+      $("aviso-herr-progreso").textContent = ev.line; // cheap: only the line text
+    }
   });
   try {
-    await api.install_tools(faltan);
+    await api.install_tools(keys);
   } catch (e) {
-    progreso.textContent = sinCodigo(e);
+    $("aviso-herr-progreso").textContent = sinCodigo(e);
   } finally {
     if (quitar) quitar();
+    if (api.set_install_taskbar) api.set_install_taskbar(false);
   }
   const tras = await api.get_tool_status().catch(() => []);
   const faltanTras = tras.filter((h) => !h.present);
+  avisoEstado = null;
   if (faltanTras.length === 0) $("aviso-herr").hidden = true;
-  else pintarAviso(faltanTras);
+  else {
+    avisoFaltan = faltanTras;
+    pintarAviso();
+  }
 }
 
 async function descartarAviso() {
@@ -1101,7 +1155,7 @@ async function abrirAjustes() {
         get_config: api.get_config, set_formats: api.set_formats, reset_formats: api.reset_formats,
         get_prefs: api.get_prefs, set_language: api.set_language, set_accent: api.set_accent,
         get_tool_status: api.get_tool_status, install_tools: api.install_tools, cancel_install: api.cancel_install,
-        on_install_progress: api.on_install_progress,
+        on_install_progress: api.on_install_progress, minimize_window: api.minimize_window, set_install_taskbar: api.set_install_taskbar,
       };
       cambio = await window.Ajustes.abrir({ contenedor, api: f, alCambiarIdioma: cambiarIdioma });
     }
@@ -1336,6 +1390,7 @@ async function iniciar() {
   document.addEventListener("mousemove", alMoverRaton);
   $("ajustes").addEventListener("click", abrirAjustes);
   $("aviso-herr-instalar").addEventListener("click", instalarDesdeAviso);
+  $("aviso-herr-min").addEventListener("click", () => api.minimize_window && api.minimize_window());
   $("aviso-herr-luego").addEventListener("click", descartarAviso);
   document.addEventListener("click", alHacerClic);
   document.addEventListener("keydown", alPulsarTecla);

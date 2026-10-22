@@ -12,7 +12,7 @@ use crate::spawn::find_program;
 use crate::tr;
 use serde::Serialize;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 
 // One external tool: the programs that count as it, its winget package id, and whether it is
 // essential (without it even the most common conversions - images, audio, video - do not work).
@@ -191,6 +191,25 @@ fn emit(app: &AppHandle, key: &str, phase: &str, line: &str, index: usize, total
         "install-progress",
         InstallEvent { key: key.to_string(), phase: phase.to_string(), line: line.to_string(), index, total },
     );
+}
+
+// Minimizes the main window. Used by the installer's "Minimize" button so a multi-minute
+// winget install can be tucked into the taskbar while it keeps running in the background.
+#[tauri::command]
+pub fn minimize_window(app: AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.minimize();
+    }
+}
+
+// While installing, turn the borderless always-on-top card into a normal, minimizable window
+// that shows in the taskbar (so the user can minimize/restore it). When off, restore the card.
+#[tauri::command]
+pub fn set_install_taskbar(app: AppHandle, on: bool) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.set_skip_taskbar(!on);
+        let _ = window.set_always_on_top(!on);
+    }
 }
 
 #[cfg(test)]

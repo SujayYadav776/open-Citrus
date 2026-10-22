@@ -61,9 +61,9 @@
       let tipos = [];
       let prefs = null;
       let herramientas = [];
-      let instalando = false;
+      let estadoInstal = null; // { orden:[keys], status:{key:phase}, linea:'' } while installing
       let ultimoLog = "";
-      let progNode = null;
+      let lineaNode = null;
       let quitarEscucha = null;
 
       const raiz = el("div", "ed-raiz aj-raiz");
@@ -253,21 +253,40 @@
 
       // ----- External tools section -----
 
+      // Status chip for a tool: live install state while installing, else installed/missing.
+      function chipEstado(h) {
+        if (estadoInstal && estadoInstal.status[h.key]) {
+          const s = estadoInstal.status[h.key];
+          if (s === "installing") return [tr("tools.stInstalling"), "aj-herr-est aj-herr-est-inst"];
+          if (s === "done") return [tr("tools.stDone"), "aj-herr-est aj-herr-est-ok"];
+          if (s === "failed") return [tr("tools.stFailed"), "aj-herr-est aj-herr-est-fail"];
+          if (s === "cancelled") return [tr("tools.cancelled"), "aj-herr-est aj-herr-est-fail"];
+          return [tr("tools.stWaiting"), "aj-herr-est aj-herr-est-wait"];
+        }
+        return [h.present ? tr("tools.present") : tr("tools.missingShort"), "aj-herr-est " + (h.present ? "aj-herr-est-ok" : "aj-herr-est-fail")];
+      }
+
       function dibujarHerramientas() {
         if (!api.get_tool_status) return [];
         const sec = el("section", "aj-tipo aj-herr");
         sec.append(el("h3", "aj-nombre", tr("tools.title")));
+        const instalando = !!estadoInstal;
         const faltan = herramientas.filter((h) => !h.present);
-        sec.append(el("div", "ed-subtitulo", faltan.length ? tr("tools.hintMissing", { count: faltan.length }) : tr("tools.hintOk")));
+        sec.append(el("div", "ed-subtitulo", instalando ? tr("tools.installing") : faltan.length ? tr("tools.hintMissing", { count: faltan.length }) : tr("tools.hintOk")));
 
+        // While installing, list the queued packages in order; otherwise list every tool.
+        const filas = instalando
+          ? estadoInstal.orden.map((k) => herramientas.find((h) => h.key === k)).filter(Boolean)
+          : herramientas;
         const listaHerr = el("div", "aj-herr-lista");
-        for (const h of herramientas) {
-          const fila = el("div", "aj-herr-fila" + (h.present ? " aj-herr-ok" : " aj-herr-falta"));
+        for (const h of filas) {
+          const fila = el("div", "aj-herr-fila");
           const info = el("div", "aj-herr-info");
           info.append(el("span", "aj-herr-nombre", NOMBRES[h.key] || h.key));
-          if (tr("tools.desc." + h.key) !== "tools.desc." + h.key) info.append(el("span", "aj-herr-desc", tr("tools.desc." + h.key)));
+          if (!instalando && tr("tools.desc." + h.key) !== "tools.desc." + h.key) info.append(el("span", "aj-herr-desc", tr("tools.desc." + h.key)));
           fila.append(info);
-          fila.append(el("span", "aj-herr-estado", h.present ? tr("tools.present") : tr("tools.missingShort")));
+          const [chip, cls] = chipEstado(h);
+          fila.append(el("span", cls, chip));
           if (!h.present && !instalando) {
             if (h.winget && api.install_tools) {
               const b = el("button", "aj-herr-instalar", tr("tools.install"));
@@ -285,53 +304,78 @@
         }
         sec.append(listaHerr);
 
-        const faltanWinget = faltan.filter((h) => h.winget);
         const botones = el("div", "aj-herr-botones");
         if (instalando) {
+          const min = el("button", "aj-herr-copiar", tr("tools.minimize"));
+          min.type = "button";
+          min.addEventListener("click", () => api.minimize_window && api.minimize_window());
           const parar = el("button", "aj-herr-parar", tr("tools.stop"));
           parar.type = "button";
           parar.addEventListener("click", () => api.cancel_install && api.cancel_install());
-          botones.append(parar);
-        } else if (faltanWinget.length && api.install_tools) {
-          const todos = el("button", "aj-herr-todos", tr("tools.installAll"));
-          todos.type = "button";
-          todos.addEventListener("click", () => instalar(faltanWinget.map((h) => h.key)));
-          const copiar = el("button", "aj-herr-copiar", tr("tools.copy"));
-          copiar.type = "button";
-          copiar.addEventListener("click", copiarComando);
-          botones.append(todos, copiar);
+          botones.append(min, parar);
+        } else {
+          const faltanWinget = faltan.filter((h) => h.winget);
+          if (faltanWinget.length && api.install_tools) {
+            const todos = el("button", "aj-herr-todos", tr("tools.installAll"));
+            todos.type = "button";
+            todos.addEventListener("click", () => instalar(faltanWinget.map((h) => h.key)));
+            const copiar = el("button", "aj-herr-copiar", tr("tools.copy"));
+            copiar.type = "button";
+            copiar.addEventListener("click", copiarComando);
+            botones.append(todos, copiar);
+          }
         }
         sec.append(botones);
 
-        const prog = el("p", "aj-herr-progreso");
-        prog.textContent = ultimoLog;
-        progNode = prog;
-        sec.append(prog);
+        const linea = el("p", "aj-herr-progreso");
+        linea.textContent = instalando ? estadoInstal.linea : ultimoLog;
+        lineaNode = linea;
+        sec.append(linea);
         return [sec];
       }
 
       function alProgresoInstalacion(ev) {
-        const nombre = NOMBRES[ev.key] || ev.key;
-        if (ev.phase === "start") ultimoLog = tr("tools.installingOf", { name: nombre, index: ev.index + 1, total: ev.total });
-        else if (ev.phase === "log" && ev.line) ultimoLog = ev.line;
-        else if (ev.phase === "done") ultimoLog = tr("tools.doneOf", { name: nombre });
-        else if (ev.phase === "error") ultimoLog = tr("tools.failedOf", { name: nombre });
-        else if (ev.phase === "cancelled") ultimoLog = tr("tools.cancelled");
-        if (progNode) progNode.textContent = ultimoLog;
+        if (!estadoInstal) return;
+        if (ev.phase === "start") {
+          estadoInstal.status[ev.key] = "installing";
+          estadoInstal.linea = tr("tools.installingOf", { name: NOMBRES[ev.key] || ev.key, index: ev.index + 1, total: ev.total });
+          dibujar();
+        } else if (ev.phase === "done") {
+          estadoInstal.status[ev.key] = "done";
+          dibujar();
+        } else if (ev.phase === "error") {
+          estadoInstal.status[ev.key] = "failed";
+          dibujar();
+        } else if (ev.phase === "cancelled") {
+          estadoInstal.status[ev.key] = "cancelled";
+          dibujar();
+        } else if (ev.phase === "log" && ev.line) {
+          estadoInstal.linea = ev.line;
+          if (lineaNode) lineaNode.textContent = ev.line; // cheap: only the line text, no full redraw
+        }
       }
 
       async function instalar(keys) {
-        if (instalando || !api.install_tools) return;
-        instalando = true;
-        ultimoLog = tr("tools.installing");
+        if (estadoInstal || !api.install_tools) return;
+        estadoInstal = { orden: keys.slice(), status: {}, linea: "" };
+        keys.forEach((k, i) => (estadoInstal.status[k] = i === 0 ? "installing" : "waiting"));
+        if (api.set_install_taskbar) api.set_install_taskbar(true);
         dibujar();
         try {
           if (api.on_install_progress && !quitarEscucha) quitarEscucha = await api.on_install_progress(alProgresoInstalacion);
           await api.install_tools(keys);
         } catch (e) {
-          ultimoLog = String(e).replace(/^Error: /, "");
+          estadoInstal.linea = String(e).replace(/^Error: /, "");
+          if (lineaNode) lineaNode.textContent = estadoInstal.linea;
         } finally {
-          instalando = false;
+          if (quitarEscucha) {
+            try {
+              quitarEscucha();
+            } catch (e) {}
+            quitarEscucha = null;
+          }
+          estadoInstal = null;
+          if (api.set_install_taskbar) api.set_install_taskbar(false);
           try {
             herramientas = await api.get_tool_status();
           } catch (e) {}
@@ -343,7 +387,7 @@
         if (navigator.clipboard && navigator.clipboard.writeText) {
           navigator.clipboard.writeText(texto).then(() => {
             ultimoLog = mensaje;
-            if (progNode) progNode.textContent = ultimoLog;
+            if (lineaNode) lineaNode.textContent = mensaje;
           }).catch(() => {});
         }
       }

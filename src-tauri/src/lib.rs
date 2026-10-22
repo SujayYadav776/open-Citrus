@@ -94,6 +94,8 @@ pub fn run() {
             installer::get_tool_status,
             installer::install_tools,
             installer::cancel_install,
+            installer::minimize_window,
+            installer::set_install_taskbar,
             wheel::cancel,
             wheel::quit
         ])

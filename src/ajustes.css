@@ -84,9 +84,12 @@
 .aj-herr-info { display: flex; flex-direction: column; gap: 1px; flex: 1; min-width: 0; }
 .aj-herr-nombre { font-size: 13px; font-weight: 800; }
 .aj-herr-desc { font-size: 11px; color: var(--ed-suave); }
-.aj-herr-estado { font-size: 11px; font-weight: 800; padding: 2px 9px; border-radius: 999px; white-space: nowrap; }
-.aj-herr-ok .aj-herr-estado { background: rgba(46, 158, 91, 0.16); color: #1f7a45; }
-.aj-herr-falta .aj-herr-estado { background: rgba(229, 56, 59, 0.14); color: #b23b3e; }
+.aj-herr-est { font-size: 11px; font-weight: 800; padding: 2px 9px; border-radius: 999px; white-space: nowrap; }
+.aj-herr-est-ok { background: rgba(46, 158, 91, 0.16); color: #1f7a45; }
+.aj-herr-est-fail { background: rgba(229, 56, 59, 0.14); color: #b23b3e; }
+.aj-herr-est-wait { background: var(--ed-panel); color: var(--ed-suave); box-shadow: inset 0 0 0 1px var(--ed-borde); }
+.aj-herr-est-inst { background: rgba(242, 106, 27, 0.16); color: #b5540f; animation: aj-herr-pulso 1.1s ease-in-out infinite; }
+@keyframes aj-herr-pulso { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
 
 .aj-herr-instalar,
 .aj-herr-todos,

@@ -6,7 +6,7 @@ Flow: the user drops a file on the [[Wheel]] (or opens it from Nautilus) → the
 
 Folders:
 - `src/`: `index.html`, `styles.css`, `geometria.js` (wheel geometry), `main.js` (wheel, cards and flow), `editor.js` (trim editors), `ajustes.js` (settings screen), `i18n.js` and `locales/` (translations).
-- `src-tauri/src/`: `lib.rs` (startup and command registration), `converters.rs`, `tools.rs`, `wheel.rs` (window and wheel commands), `thumbnail.rs`, `lang.rs` and `config.rs`. `main.rs` only calls `lib.rs`.
+- `src-tauri/src/`: `lib.rs` (startup and command registration), `converters.rs`, `tools.rs`, `wheel.rs` (window and wheel commands), `installer.rs` (detects the external converter tools and installs the missing ones via winget), `spawn.rs` (process launching with a hidden console, PATH/known-folder resolution, kill-tree and Job Objects), `thumbnail.rs`, `lang.rs` and `config.rs`. `main.rs` only calls `lib.rs`.
 - `src-tauri/locales/` and `src-tauri/assets/`: translation catalogs for the backend, and the reference document and filter used for docx files.
 
 See [[Decisions]].

@@ -2,7 +2,7 @@ use crate::lang::tr;
 use crate::tr;
 use serde::Serialize;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::Ordering;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 use tauri::{AppHandle, LogicalSize, Manager, PhysicalPosition, PhysicalSize};
 
@@ -15,7 +15,7 @@ pub struct FileInfo {
 
 // Every argument that does not start with "-" (0 is the program name), as absolute
 // paths, only those that exist, without repeats and in the order received
-fn paths_from_args(args: &[String]) -> Vec<PathBuf> {
+pub(crate) fn paths_from_args(args: &[String]) -> Vec<PathBuf> {
     let mut paths: Vec<PathBuf> = Vec::new();
     for arg in args.iter().skip(1).filter(|a| !a.starts_with('-')) {
         let Ok(path) = std::path::absolute(arg) else {
@@ -210,7 +210,24 @@ pub(crate) fn show_at_cursor(app: &AppHandle) {
 
 // The Windows equivalent of the old Nautilus scripts-accels: Alt+M summons the drop
 // card at the pointer, or hides it again when it is already up (it stays in the tray).
+//
+// The toggle blocks ~200 ms inside resize_and_move, and each press runs in its own thread, so a
+// rapid double-press could otherwise start a second toggle while the first is still showing the
+// card - and race over its visibility. TOGGLING serialises them: an overlapping press is ignored.
+static TOGGLING: AtomicBool = AtomicBool::new(false);
+
+struct ToggleGuard;
+impl Drop for ToggleGuard {
+    fn drop(&mut self) {
+        TOGGLING.store(false, Ordering::SeqCst);
+    }
+}
+
 pub(crate) fn toggle_at_cursor(app: &AppHandle) {
+    if TOGGLING.swap(true, Ordering::SeqCst) {
+        return;
+    }
+    let _guard = ToggleGuard;
     let Some(window) = app.get_webview_window("main") else {
         return;
     };

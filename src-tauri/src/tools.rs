@@ -741,9 +741,14 @@ fn normalize(peaks: &mut [f32]) {
     }
 }
 
+// Memory bound for the unknown-duration path: at 8 kHz mono s16, ten minutes is ~9.6 MB of
+// samples. Past the cap the stream is still drained (so ffmpeg is never left blocked on a full
+// pipe) but the extra samples are dropped; the waveform is only ever a preview of the head.
+const MAX_WAVE_SAMPLES: usize = 8_000 * 60 * 10;
+
 // Reads PCM s16le in chunks and computes the peak of each bucket. With `per_bucket` (the duration is known)
-// it does not keep the samples: only the peaks. Without it, it keeps them all (8 kHz, about 56 MB per hour).
-fn read_peaks<R: Read>(mut stream: R, buckets: usize, per_bucket: Option<usize>) -> Vec<f32> {
+// it does not keep the samples: only the peaks. Without it, it keeps them all up to `max_samples`.
+fn read_peaks<R: Read>(mut stream: R, buckets: usize, per_bucket: Option<usize>, max_samples: usize) -> Vec<f32> {
     let mut peaks = vec![0.0f32; buckets];
     let mut all: Vec<i16> = Vec::new();
     let mut done = 0;
@@ -761,7 +766,12 @@ fn read_peaks<R: Read>(mut stream: R, buckets: usize, per_bucket: Option<usize>)
         pending.drain(..even);
         match per_bucket {
             Some(size) => add_samples(&mut peaks, done, size, &samples),
-            None => all.extend_from_slice(&samples),
+            None => {
+                if all.len() < max_samples {
+                    let keep = (max_samples - all.len()).min(samples.len());
+                    all.extend_from_slice(&samples[..keep]);
+                }
+            }
         }
         done += samples.len();
     }
@@ -786,7 +796,7 @@ fn waveform_blocking(path: &str, buckets: u32) -> Result<Vec<f32>, String> {
     // With the duration, it is known how many samples each bucket has and the audio is processed without storing it
     let per_bucket = probe_duration(&src).map(|d| ((d * WAVE_RATE) as usize / buckets).max(1));
     let args = ["-nostdin", "-v", "error", "-i", src.as_str(), "-vn", "-ac", "1", "-ar", "8000", "-f", "s16le", "-"];
-    let peaks = capture_with("ffmpeg", &args, Instant::now() + WAVE_WAIT, move |stream| read_peaks(stream, buckets, per_bucket))
+    let peaks = capture_with("ffmpeg", &args, Instant::now() + WAVE_WAIT, move |stream| read_peaks(stream, buckets, per_bucket, MAX_WAVE_SAMPLES))
         .map_err(|e| if e == timeout_message() { took_too_long() } else { tr("Could not read the audio", "No se pudo leer el audio") })?;
     Ok(peaks)
 }
@@ -1270,9 +1280,9 @@ mod tests {
         let samples: Vec<i16> = (0..40).map(|i| if i % 10 == 3 { (i as i16 + 1) * 100 } else { 10 }).collect();
         let bytes = to_bytes(&samples);
         // With the duration known (10 samples per bucket) and without it (40 samples / 4 buckets) it comes out the same
-        let known = read_peaks(Trickle(bytes.clone(), 0), 4, Some(10));
-        let unknown = read_peaks(Trickle(bytes.clone(), 0), 4, None);
-        let whole = read_peaks(&bytes[..], 4, Some(10));
+        let known = read_peaks(Trickle(bytes.clone(), 0), 4, Some(10), usize::MAX);
+        let unknown = read_peaks(Trickle(bytes.clone(), 0), 4, None, usize::MAX);
+        let whole = read_peaks(&bytes[..], 4, Some(10), usize::MAX);
         assert_eq!(known, unknown);
         assert_eq!(known, whole);
         // Picos 400, 1400, 2400, 3400 normalizados
@@ -1280,8 +1290,23 @@ mod tests {
         assert_eq!(known[3], 1.0);
         assert!((known[0] - 400.0 / 3400.0).abs() < 1e-6);
         // More buckets than samples and an empty stream: it does not fail
-        assert_eq!(read_peaks(&bytes[..4], 8, None).len(), 8);
-        assert_eq!(read_peaks(&[][..], 3, Some(5)), [0.0, 0.0, 0.0]);
+        assert_eq!(read_peaks(&bytes[..4], 8, None, usize::MAX).len(), 8);
+        assert_eq!(read_peaks(&[][..], 3, Some(5), usize::MAX), [0.0, 0.0, 0.0]);
+    }
+
+    // When the duration is unknown the accumulated samples are capped so a huge stream cannot
+    // exhaust memory; the peaks vector is still `buckets` long and the extra samples are drained.
+    #[test]
+    fn limita_los_picos_sin_duracion() {
+        // The first 8 samples are loud, the rest silent. A cap of 8 keeps only the loud head.
+        let samples: Vec<i16> = (0..40).map(|i| if i < 8 { 30000 } else { 0 }).collect();
+        let bytes = to_bytes(&samples);
+        // Capped: only the 8 loud samples remain, so every bucket saturates after normalizing
+        let capped = read_peaks(&bytes[..], 4, None, 8);
+        assert_eq!(capped, [1.0, 1.0, 1.0, 1.0]);
+        // Uncapped: the loud head fills only the first of 10-per-bucket windows, the rest is silent
+        let uncapped = read_peaks(&bytes[..], 4, None, usize::MAX);
+        assert_eq!(uncapped, [1.0, 0.0, 0.0, 0.0]);
     }
 
     #[test]

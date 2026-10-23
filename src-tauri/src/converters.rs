@@ -319,6 +319,16 @@ pub(crate) fn run_in(program: &str, args: &[&str], dir: Option<&Path>) -> Result
     run_progress(program, args, dir, None)
 }
 
+// Last-resort watchdog for a conversion. This is deliberately generous (no realistic local
+// conversion of a single file takes hours) so it never cancels legitimate work; it exists only
+// so a tool that truly hangs - ffmpeg spinning on a corrupt file, a LibreOffice instance stuck on
+// an invisible dialog - cannot run forever. The user can always cancel much sooner.
+const CONVERSION_TIMEOUT: Duration = Duration::from_secs(2 * 60 * 60);
+
+fn timed_out_error(program: &str) -> String {
+    tr!("The conversion took too long and {program} was stopped", "La conversión tardó demasiado y {program} se detuvo", program = program)
+}
+
 // Same as run_in; if it receives (total duration in seconds, progress function), it reads the stdout
 // of ffmpeg (-progress pipe:1) line by line and reports the percentage.
 pub(crate) fn run_progress(
@@ -326,6 +336,18 @@ pub(crate) fn run_progress(
     args: &[&str],
     dir: Option<&Path>,
     progress: Option<(f64, Progress)>,
+) -> Result<(), String> {
+    run_deadline(program, args, dir, progress, Instant::now() + CONVERSION_TIMEOUT)
+}
+
+// The body behind run_progress, with the deadline made explicit so the timeout can be tested
+// without waiting two hours. Every external tool the app runs goes through here.
+fn run_deadline(
+    program: &str,
+    args: &[&str],
+    dir: Option<&Path>,
+    progress: Option<(f64, Progress)>,
+    deadline: Instant,
 ) -> Result<(), String> {
     // Resolve the bare name to a real path (PATH + known install dirs) so tools that are not
     // on PATH - LibreOffice, 7-Zip - still launch when the app is started from Explorer.
@@ -349,22 +371,32 @@ pub(crate) fn run_progress(
     };
     let stderr_reader = read_in_thread(child.stderr.take());
 
-    let status = loop {
+    // Poll every 50 ms: if the user cancelled, or the deadline passed, we stop the tool and take
+    // the shared kill + drain path; if the process exited on its own we keep its ExitStatus.
+    let outcome = loop {
         if CANCEL.load(Ordering::SeqCst) {
-            kill_tree(&child);
-            let _ = child.kill();
-            let _ = child.wait();
-            // When all the processes die the pipes close and the threads finish
-            let _ = stdout_reader.join();
-            let _ = stderr_reader.join();
-            return Err(cancelled_error());
+            break Err(cancelled_error());
+        }
+        if Instant::now() >= deadline {
+            break Err(timed_out_error(program));
         }
         match child.try_wait() {
-            Ok(Some(status)) => break status,
+            Ok(Some(status)) => break Ok(status),
             Ok(None) => std::thread::sleep(Duration::from_millis(50)),
-            Err(e) => return Err(tr!("Error waiting for {program}: {e}", "Error esperando a {program}: {e}", program = program, e = e)),
+            Err(e) => break Err(tr!("Error waiting for {program}: {e}", "Error esperando a {program}: {e}", program = program, e = e)),
         }
     };
+    if let Err(err) = outcome {
+        // The tool is still running (cancelled, timed out, or we could not wait on it). When all
+        // the processes die the pipes close and the reader threads finish.
+        kill_tree(&child);
+        let _ = child.kill();
+        let _ = child.wait();
+        let _ = stdout_reader.join();
+        let _ = stderr_reader.join();
+        return Err(err);
+    }
+    let status = outcome.unwrap();
     let stdout = stdout_reader.join().unwrap_or_default();
     let stderr = stderr_reader.join().unwrap_or_default();
     if status.success() {
@@ -2505,6 +2537,37 @@ trailer<</Root 1 0 R/Size 6>>\n%%EOF\n";
         crate::lang::set_lang(crate::lang::Lang::En);
         std::fs::remove_dir_all(&dir).unwrap();
     }
+
+    // A tool that hangs is stopped by the deadline instead of running forever: the same kill path
+    // used for cancellation, but reported as a timeout. `sleep 5` is guaranteed to outlast 150 ms.
+    #[test]
+    fn un_proceso_colgado_se_corta_por_tiempo() {
+        let _guard = lock();
+        crate::lang::set_lang(crate::lang::Lang::En);
+        let start = std::time::Instant::now();
+        let deadline = start + std::time::Duration::from_millis(150);
+        let err = run_deadline("sleep", &["5"], None, None, deadline).unwrap_err();
+        assert_eq!(err, "The conversion took too long and sleep was stopped");
+        assert!(start.elapsed() < std::time::Duration::from_secs(3), "the watchdog waited too long: {:?}", start.elapsed());
+    }
+
+    // On Windows a folder is staged with a recursive copy (before the fix, pack of a selection
+    // containing a folder failed because neither hard_link nor fs::copy accept a directory).
+    #[cfg(windows)]
+    #[test]
+    fn empacar_una_carpeta_la_copia_entera() {
+        let dir = std::env::temp_dir().join(format!("citrus_pack_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let src = dir.join("orig");
+        std::fs::create_dir_all(src.join("sub")).unwrap();
+        std::fs::write(src.join("a.txt"), b"aaa").unwrap();
+        std::fs::write(src.join("sub").join("b.txt"), b"bbbb").unwrap();
+        let dest = dir.join("staged");
+        stage_input(&src, &dest).unwrap();
+        assert_eq!(std::fs::read(dest.join("a.txt")).unwrap(), b"aaa");
+        assert_eq!(std::fs::read(dest.join("sub").join("b.txt")).unwrap(), b"bbbb");
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
 }
 
 // Places one file inside the staging folder without duplicating data when possible:
@@ -2517,5 +2580,42 @@ pub(crate) fn stage_input(src: &Path, dest: &Path) -> Result<(), std::io::Error>
 
 #[cfg(windows)]
 pub(crate) fn stage_input(src: &Path, dest: &Path) -> Result<(), std::io::Error> {
-    std::fs::hard_link(src, dest).or_else(|_| std::fs::copy(src, dest).map(|_| ()))
+    // A folder cannot be hard-linked or copied with fs::copy, so 'pack' of a selection that
+    // includes a folder used to fail on Windows. Stage it with a recursive copy instead; a plain
+    // file keeps the no-duplication hard-link/copy path (temp lives on %TEMP%, the source can be
+    // on another volume). symlink_metadata does not follow a top-level link.
+    let meta = std::fs::symlink_metadata(src)?;
+    if meta.is_dir() {
+        return copy_tree(src, dest, 0);
+    }
+    if meta.is_file() {
+        return std::fs::hard_link(src, dest).or_else(|_| std::fs::copy(src, dest).map(|_| ()));
+    }
+    std::fs::copy(src, dest).map(|_| ())
+}
+
+// Copies a tree without following links: entry.file_type() reports a symlink/junction as a link
+// (not a real directory), so those are skipped, which stops a link pointing back at an ancestor
+// from looping. Depth is capped as a second guard against a pathological tree.
+#[cfg(windows)]
+fn copy_tree(src: &Path, dest: &Path, depth: u32) -> Result<(), std::io::Error> {
+    const MAX_COPY_DEPTH: u32 = 64;
+    if depth >= MAX_COPY_DEPTH {
+        return Ok(());
+    }
+    std::fs::create_dir_all(dest)?;
+    for entry in std::fs::read_dir(src)? {
+        let entry = entry?;
+        let from = entry.path();
+        let to = dest.join(entry.file_name());
+        match entry.file_type()? {
+            ft if ft.is_dir() => copy_tree(&from, &to, depth + 1)?,
+            ft if ft.is_file() => {
+                std::fs::copy(&from, &to)?;
+            }
+            // symlink or junction: skipped on purpose (following it is what could loop)
+            _ => {}
+        }
+    }
+    Ok(())
 }

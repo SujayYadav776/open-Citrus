@@ -9,7 +9,18 @@ mod wheel;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    use tauri::Emitter;
     tauri::Builder::default()
+        // A second launch (e.g. right-clicking another file while Citrus is already running) must
+        // not start a new process with a duplicate tray icon and a second Alt+M registration. It
+        // forwards its file paths to the running instance, which loads them and summons the card.
+        .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
+            let paths: Vec<String> = wheel::paths_from_args(&argv)
+                .iter()
+                .map(|p| p.to_string_lossy().to_string())
+                .collect();
+            let _ = app.emit("open-paths", paths);
+        }))
         .plugin(tauri_plugin_opener::init())
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()

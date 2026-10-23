@@ -31,9 +31,13 @@ foreach ($loc in $locations) {
     New-Item -Force -Path $root | Out-Null
     New-ItemProperty -Force -Path $root -Name MUIVerb -Value "Convert with Citrus" | Out-Null
     New-ItemProperty -Force -Path $root -Name Icon -Value "`"$exe`",0" | Out-Null
-    New-Item -Force -Path (Join-Path $root "command") | Out-Null
-    # %1 expands to the clicked item; %V to the background folder
-    New-ItemProperty -Force -Path (Join-Path $root "command") -Name "(Default)" -Value "`"$exe`" $($loc.Arg)" | Out-Null
+    $command = Join-Path $root "command"
+    New-Item -Force -Path $command | Out-Null
+    # %1 expands to the clicked item; %V to the background folder.
+    # The command lives in the key's *unnamed default* value. New-ItemProperty -Name "(Default)"
+    # would instead create a value literally named "(Default)", which Explorer ignores (the verb
+    # shows up but does nothing). Set-ItemProperty with -Value sets the real default value.
+    Set-ItemProperty -Path $command -Value "`"$exe`" $($loc.Arg)"
     Write-Output "registered $root"
 }
 if (-not $Remove) {

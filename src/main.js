@@ -374,6 +374,7 @@ const api = demo
           demoInstallCb = null;
         };
       },
+      on_open_paths: async () => () => {},
       minimize_window: async () => {},
       set_install_taskbar: async () => {},
       cancel: async () => {},
@@ -412,6 +413,7 @@ const api = demo
       cancel_install: () => tauri.core.invoke("cancel_install"),
       mark_setup_seen: () => tauri.core.invoke("mark_setup_seen"),
       on_install_progress: (alProgreso) => tauri.event.listen("install-progress", (e) => alProgreso(e.payload)),
+      on_open_paths: (alAbrir) => tauri.event.listen("open-paths", (e) => alAbrir(e.payload || [])),
       minimize_window: () => tauri.core.invoke("minimize_window"),
       set_install_taskbar: (on) => tauri.core.invoke("set_install_taskbar", { on }),
       cancel: () => tauri.core.invoke("cancel"),
@@ -1407,6 +1409,19 @@ async function iniciar() {
   });
 
   if (!demo) tauri.webview.getCurrentWebview().onDragDropEvent(alArrastrar);
+
+  // A second launch forwards its file paths here (the single-instance plugin keeps one process).
+  if (api.on_open_paths) {
+    await api.on_open_paths(async (paths) => {
+      if (paths && paths.length) {
+        modoLibre = false;
+        await cargarArchivos(paths);
+      } else {
+        mostrarInicio();
+      }
+      await mostrarVentana();
+    });
+  }
 
   try {
     const iniciales = demo ? [] : await api.initial_paths().catch(() => []);

@@ -7,6 +7,7 @@ use crate::tr;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Mutex;
 
 // With fewer than 3 formats, once the file's own format is removed almost no segments would be left
@@ -129,16 +130,23 @@ fn load_from(path: &Path) -> Config {
     std::fs::read_to_string(path).ok().and_then(|text| serde_json::from_str(&text).ok()).unwrap_or_default()
 }
 
-// Writes to a temporary file and renames it, so it is never left half written
+// Writes to a uniquely named temporary file and renames it, so the settings are never left half
+// written and two concurrent savers (two instances, before single-instance is enforced) cannot
+// clobber each other's temp file. On Windows rename replaces an existing file atomically.
 fn save_to(path: &Path, config: &Config) -> Result<(), String> {
     let text = serde_json::to_string_pretty(config).map_err(|e| tr!("Could not save the settings: {e}", "No se pudo guardar la configuración: {e}", e = e))?;
     if let Some(folder) = path.parent() {
         std::fs::create_dir_all(folder).map_err(|e| tr!("Could not save the settings: {e}", "No se pudo guardar la configuración: {e}", e = e))?;
     }
-    let tmp = path.with_extension("json.tmp");
+    static TMP_SEQ: AtomicUsize = AtomicUsize::new(0);
+    let name = path.file_name().unwrap_or_default().to_string_lossy();
+    let tmp = path.with_file_name(format!("{name}.{}.{}.tmp", std::process::id(), TMP_SEQ.fetch_add(1, Ordering::SeqCst)));
     std::fs::write(&tmp, text)
         .and_then(|_| std::fs::rename(&tmp, path))
-        .map_err(|e| tr!("Could not save the settings: {e}", "No se pudo guardar la configuración: {e}", e = e))
+        .map_err(|e| {
+            let _ = std::fs::remove_file(&tmp);
+            tr!("Could not save the settings: {e}", "No se pudo guardar la configuración: {e}", e = e)
+        })
 }
 
 // Saved language, so that lang.rs can use it at startup. It reads the file directly, without going through
@@ -374,7 +382,13 @@ mod tests {
         config.accent = Some("purple".to_string());
         save_to(&path, &config).unwrap();
         assert_eq!(load_from(&path), config);
-        assert!(!path.with_extension("json.tmp").exists());
+        // The uniquely named temp file is renamed into place: nothing ending in .tmp is left behind
+        let leftovers: Vec<_> = std::fs::read_dir(path.parent().unwrap())
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .filter(|e| e.file_name().to_string_lossy().ends_with(".tmp"))
+            .collect();
+        assert!(leftovers.is_empty(), "temp files left behind: {leftovers:?}");
         // Broken file or with another shape: default values, no error
         std::fs::write(&path, "{ esto no es json").unwrap();
         assert_eq!(load_from(&path), Config::default());

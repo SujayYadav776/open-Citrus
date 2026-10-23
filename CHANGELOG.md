@@ -1,5 +1,46 @@
 # Release notes
 
+## v1.2.2 - Citrus (Windows)
+
+Hardening pass driven by a full production-readiness audit: path and URI safety, a
+non-blocking file inspector, a single-flight tools installer, and CI that now compiles
+the Windows-only code. No functional UI changes.
+
+### What's new
+
+- **No path-traversal or illegal names.** "Save as…" names are now validated: reserved
+  Windows names (`CON`, `PRN`, `AUX`, `NUL`, `COM1-9`, `LPT1-9`) and any
+  `\ / : * ? " < > |` or control character are rejected, so a crafted name can no longer
+  write outside the output folder.
+- **LibreOffice conversions survive spaces in the temp path.** Paths handed to LibreOffice
+  as `file://` URIs are now percent-encoded per RFC 3986, fixing failures whenever the
+  profile or `%TEMP%` directory contained a space or other special character.
+- **The wheel no longer freezes on big folders.** `file_info` (folder size and file
+  metadata) runs off the main thread, and folder-size recursion is capped at 64 levels so a
+  deep or symlink-heavy tree cannot hang the app.
+- **One install at a time.** Starting a second tool install while one is already running is
+  rejected ("An installation is already running") instead of corrupting the shared
+  cancel/pid state.
+- **Already-installed tools are skipped server-side.** The installer re-checks presence for
+  each tool before invoking winget and reports it as done immediately, so even a stale key
+  never spawns a redundant install.
+- **CI now covers Windows.** The suite runs on both `ubuntu-24.04` and `windows-latest`, so
+  the `#[cfg(windows)]` code (Job Objects, the tools installer, tray, taskbar window
+  toggles) is compiled and tested on real Windows, not only Linux.
+
+### Release artifacts
+
+| File | Size | SHA-256 |
+|---|---|---|
+| `Citrus_1.2.2_x64-setup.exe` (NSIS installer) | 1,674,520 B (1.60 MiB) | `bb11e7007339a9f8b839bcc067f02f3f6c6c31376127483d2843cdd6fd82d032` |
+| `citrus.exe` (portable, x64) | 5,171,712 B (4.93 MiB) | `31e9b7d1418fde11b6c928944b15c2758c9a6f3a2899a68b441efc23acf276df` |
+
+### Verification
+
+- `cargo test --lib`: 128 passed, 0 failed, 1 ignored.
+- GitHub Actions green on both ubuntu-24.04 and windows-latest.
+- Installer rebuilt from this tagged tree; the size/SHA-256 above are from that build.
+
 ## v1.2.1 - Citrus (Windows)
 
 Patch release hardening the in-app tools installer (fixes installs that appear to hang at

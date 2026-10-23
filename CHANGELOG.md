@@ -1,5 +1,35 @@
 # Release notes
 
+## v1.2.4 - Citrus (Windows)
+
+Fixes the drop card swallowing desktop clicks: the empty area around the circle is now
+click‑through, so you can click whatever is behind Citrus without dismissing the card.
+
+### What's new
+
+- **The transparent area no longer blocks the desktop.** Citrus's window is a transparent
+  460×460 rectangle, and WebView2 was capturing every mouse click inside it — so icons or
+  taskbar items behind the empty ring around the "drop a file" circle couldn't be clicked.
+  A lightweight poller now watches the global cursor and, while the pointer is outside the
+  interactive circle, makes the window ignore mouse input so clicks fall straight through to
+  the desktop. Move back over the circle and it becomes interactive again (within ~50 ms).
+- **The circle itself still captures clicks.** Clicks and file drops inside the drop circle
+  are handled by Citrus as before, and the conversion wheel, result cards, editor and
+  settings stay fully interactive — only the empty surround is click‑through.
+
+### Release artifacts
+
+| File | Size | SHA-256 |
+|---|---|---|
+| `Citrus_1.2.4_x64-setup.exe` (NSIS installer) | 1,688,622 B (1.61 MiB) | `7702a0de4acb6a9a68828f3cf075b6ab3e5164907c6c5ff96750624a5ab1151a` |
+| `citrus.exe` (portable, x64) | 5,209,600 B (4.97 MiB) | `530eacf40d00b650b527a549083f9e30b32be323aa05f9c77a2b8a3430f5e339` |
+
+### Verification
+
+- `cargo test --lib`: 131 passed, 0 failed, 1 ignored.
+- GitHub Actions green on both ubuntu-24.04 and windows-latest.
+- Click‑through verified working on a real Windows device.
+
 ## v1.2.3 - Citrus (Windows)
 
 Second production-readiness hardening pass: robustness fixes across conversions,

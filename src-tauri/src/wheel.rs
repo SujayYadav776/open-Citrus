@@ -3,6 +3,7 @@ use crate::tr;
 use serde::Serialize;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Mutex;
 use std::time::Duration;
 use tauri::{AppHandle, LogicalSize, Manager, PhysicalPosition, PhysicalSize};
 
@@ -342,6 +343,56 @@ pub fn cancel() {
 #[tauri::command]
 pub fn quit(app: AppHandle) {
     app.exit(0);
+}
+
+// ---------- Click-through of the transparent area ----------
+// The window is a transparent rectangle, but WebView2 still captures mouse input over its
+// whole bounds, so clicks in the empty area around the circle would never reach the desktop.
+// The frontend sets an "interactive radius" per view (the circle / wheel); a poller watches the
+// global cursor and, while the pointer is outside that circle, makes the window click-through so
+// the desktop underneath stays usable. None = keep the whole window interactive (rectangular
+// views like the cards, editor and settings, and the wheel where outside-click closes it).
+static INTERACTIVE_RADIUS: Mutex<Option<f64>> = Mutex::new(None);
+static CLICK_THROUGH_ON: AtomicBool = AtomicBool::new(false);
+
+#[tauri::command]
+pub fn set_interactive_radius(radius: Option<f64>) {
+    *INTERACTIVE_RADIUS.lock().unwrap_or_else(|e| e.into_inner()) = radius;
+}
+
+// True when the cursor (physical, relative to the window) is outside a circle of `radius`
+// logical pixels centred on the window.
+fn outside_circle(window: &tauri::WebviewWindow, radius: f64) -> bool {
+    let (Ok(pos), Ok(size)) = (window.cursor_position(), window.inner_size()) else {
+        return false; // can't tell: stay interactive rather than swallow the pointer
+    };
+    let scale = window.scale_factor().unwrap_or(1.0);
+    let dx = pos.x - size.width as f64 / 2.0;
+    let dy = pos.y - size.height as f64 / 2.0;
+    (dx * dx + dy * dy).sqrt() / scale > radius
+}
+
+// Started once at setup. Polls the global cursor (which is still readable while the window
+// ignores events) and toggles click-through so only the circle stays interactive.
+pub(crate) fn start_click_through(app: AppHandle) {
+    std::thread::spawn(move || loop {
+        std::thread::sleep(Duration::from_millis(50));
+        let Some(window) = app.get_webview_window("main") else {
+            continue;
+        };
+        let ignore = if window.is_visible().unwrap_or(false) {
+            match *INTERACTIVE_RADIUS.lock().unwrap_or_else(|e| e.into_inner()) {
+                Some(radius) => outside_circle(&window, radius),
+                None => false,
+            }
+        } else {
+            false
+        };
+        // Only touch the window when the state actually flips (avoid a call every 50 ms).
+        if CLICK_THROUGH_ON.swap(ignore, Ordering::SeqCst) != ignore {
+            let _ = window.set_ignore_cursor_events(ignore);
+        }
+    });
 }
 
 #[cfg(test)]

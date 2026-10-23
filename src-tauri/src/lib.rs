@@ -64,6 +64,9 @@ pub fn run() {
                 builder = builder.icon(icon.clone());
             }
             builder.build(handle)?;
+            // Watch the global cursor so the transparent area around the circle stops
+            // swallowing desktop clicks (see wheel::start_click_through).
+            wheel::start_click_through(handle.clone());
             Ok(())
         })
         // Closing the window (Alt+F4, etc.) hides it to the tray rather than quitting, so
@@ -96,6 +99,7 @@ pub fn run() {
             wheel::place_wheel,
             wheel::center_wheel,
             wheel::resize_center,
+            wheel::set_interactive_radius,
             tools::get_tools,
             tools::run_tool,
             tools::media_info,

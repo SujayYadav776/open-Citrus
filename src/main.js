@@ -377,6 +377,7 @@ const api = demo
       on_open_paths: async () => () => {},
       minimize_window: async () => {},
       set_install_taskbar: async () => {},
+      set_interactive_radius: async () => {},
       cancel: async () => {},
       quit: async () => {},
     }
@@ -416,6 +417,7 @@ const api = demo
       on_open_paths: (alAbrir) => tauri.event.listen("open-paths", (e) => alAbrir(e.payload || [])),
       minimize_window: () => tauri.core.invoke("minimize_window"),
       set_install_taskbar: (on) => tauri.core.invoke("set_install_taskbar", { on }),
+      set_interactive_radius: (radius) => tauri.core.invoke("set_interactive_radius", { radius }),
       cancel: () => tauri.core.invoke("cancel"),
       quit: () => tauri.core.invoke("quit"),
     };
@@ -448,6 +450,10 @@ function mostrarVista(nombre, estado) {
   vistaActual = estado || nombre;
   clearTimeout(temporizador);
   for (const clave in vistas) vistas[clave].hidden = clave !== nombre;
+  // The drop card is a 230px circle inside a 460px window: let clicks in the empty ring
+  // fall through to the desktop. Other views (wheel, cards, editor, settings) stay fully
+  // interactive, so they receive their own outside-click / button handling.
+  if (api.set_interactive_radius) api.set_interactive_radius(nombre === "inicio" ? 115 : null);
 }
 
 // ---------- Salir / volver ----------

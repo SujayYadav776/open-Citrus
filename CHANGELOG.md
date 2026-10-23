@@ -1,5 +1,60 @@
 # Release notes
 
+## v1.2.3 - Citrus (Windows)
+
+Second production-readiness hardening pass: robustness fixes across conversions,
+the in-app tools installer, configuration and Windows shell integration. No
+user-facing UI redesign (the README was rewritten for first-time users).
+
+### What's new
+
+- **A hung conversion can no longer run forever.** Every external tool run now has a
+  generous watchdog (2 h). If a tool truly hangs - ffmpeg spinning on a corrupt file, a
+  LibreOffice instance stuck on an invisible dialog - it is stopped and reported as
+  "took too long and was stopped" instead of blocking the batch.
+- **Packing a folder works on Windows.** "Compress" of a selection that included a
+  folder used to fail (the staging step only handled files). Folders are now staged with
+  a recursive copy that skips symlinks/junctions and caps depth, so it can't loop.
+- **No memory blow-up on huge audio waveforms.** When a file's duration is unknown, the
+  waveform now accumulates only a bounded number of samples while still draining the
+  decoder, so a very long or streamed file can't exhaust memory.
+- **Alt+M is debounce-safe.** A rapid double-press can no longer start two toggles that
+  fight over the card's visibility while the ~200 ms resize is in flight.
+- **Settings save is collision-proof.** The config is written to a uniquely named temp
+  file (process id + counter) and renamed into place, and the temp is cleaned up on
+  failure, so two savers can't clobber each other.
+- **Single instance.** Launching Citrus again (e.g. right-clicking another file while it
+  already runs) no longer spawns a duplicate tray icon or a second Alt+M; the running
+  instance receives the new file paths and shows them instead.
+- **Explorer right-click menu actually works.** The registration script was writing the
+  command into a value literally named "(Default)" instead of the key's real default
+  value, so the menu item appeared but did nothing. Fixed - "Convert with Citrus" now
+  launches.
+- **Screen-reader announcement.** The wheel's center pill is now a polite live region.
+- **Docs & README.** The README was rewritten around a beginner-friendly 3-step quick
+  start (install → one-click tools → convert) with screenshots and a troubleshooting
+  section; the developer docs gained the installer commands/events, the timeout, the
+  async file-info and the strengthened name validation.
+
+### Deferred
+
+- **Content-Security-Policy** was evaluated but left at `null` this release: it could not
+  be runtime-verified in the build environment, and an incorrect CSP would silently blank
+  the whole app, so it ships only after a device smoke test.
+
+### Release artifacts
+
+| File | Size | SHA-256 |
+|---|---|---|
+| `Citrus_1.2.3_x64-setup.exe` (NSIS installer) | 1,684,957 B (1.61 MiB) | `3573aa26d8620326c775add1d435cb8168d28e9b2f6f65b36d344f187fd06d89` |
+| `citrus.exe` (portable, x64) | 5,197,824 B (4.96 MiB) | `13acbf583b961e8ddf91968fe36b6b932982c95b172a367a04ae074541f36e6a` |
+
+### Verification
+
+- `cargo test --lib`: 131 passed, 0 failed, 1 ignored.
+- GitHub Actions green on both ubuntu-24.04 and windows-latest.
+- Installer rebuilt from this tagged tree; the size/SHA-256 above are from that build.
+
 ## v1.2.2 - Citrus (Windows)
 
 Hardening pass driven by a full production-readiness audit: path and URI safety, a

@@ -298,8 +298,10 @@ mod job_tests {
     }
 }
 
-// The install hint that goes with a missing tool: the apt line (upstream) on Unix, a
-// winget equivalent where a well-known package exists on Windows.
+// The install hint that goes with a missing tool: the apt line (upstream) on Unix, the winget
+// equivalent on Windows. The Windows half is derived from installer::TOOLS so that the message
+// and the one-click installer cannot disagree; they had drifted here for poppler (no arm),
+// 7-Zip (`OpenSource.7-Zip` is not a package) and ghostscript (not on winget at all).
 pub(crate) fn install_hint(apt_names: &str) -> String {
     #[cfg(not(windows))]
     {
@@ -307,27 +309,7 @@ pub(crate) fn install_hint(apt_names: &str) -> String {
     }
     #[cfg(windows)]
     {
-        let mut known: Vec<&str> = Vec::new();
-        let mut rest: Vec<&str> = Vec::new();
-        for name in apt_names.split_whitespace() {
-            match name {
-                "ffmpeg" => known.push("winget install Gyan.FFmpeg"),
-                "imagemagick" => known.push("winget install ImageMagick.ImageMagick"),
-                "pandoc" => known.push("winget install JohnMacFarlane.Pandoc"),
-                "libreoffice" => known.push("winget install TheDocumentFoundation.LibreOffice"),
-                "ghostscript" => known.push("winget install ArtifexSoftware.GhostScript"),
-                "7zip" | "p7zip-full" => known.push("winget install OpenSource.7-Zip"),
-                other => rest.push(other),
-            }
-        }
-        let mut parts: Vec<String> = known.iter().map(|s| s.to_string()).collect();
-        if !rest.is_empty() {
-            parts.push(format!(
-                "install {} and put it on your PATH",
-                rest.join(", ")
-            ));
-        }
-        parts.join(" ; or ")
+        crate::installer::hint_for_apt(apt_names)
     }
 }
 

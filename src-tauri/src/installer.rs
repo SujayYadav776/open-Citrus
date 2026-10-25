@@ -18,6 +18,10 @@ use tauri::{AppHandle, Emitter, Manager};
 // essential (without it even the most common conversions - images, audio, video - do not work).
 pub struct ToolSpec {
     key: &'static str,
+    // apt package names identifying this tool. The converters ask for a missing tool by its
+    // Debian name, and this is how that name finds its entry here (see hint_for_apt). Tools
+    // that come with the system (zip, tar, unzip) are not listed: there is nothing to offer.
+    apt_names: &'static [&'static str],
     // winget package id, or None when the tool is not distributed through winget
     winget: Option<&'static str>,
     // official download page, for tools that must be installed manually
@@ -32,15 +36,44 @@ pub struct ToolSpec {
 
 // Order matters: the essentials first, then the ones that unlock extra formats.
 const TOOLS: [ToolSpec; 7] = [
-    ToolSpec { key: "ffmpeg", winget: Some("Gyan.FFmpeg"), manual_url: None, programs: &["ffmpeg", "ffprobe"], essential: true, needs_admin: false, timeout_secs: 900 },
-    ToolSpec { key: "imagemagick", winget: Some("ImageMagick.ImageMagick"), manual_url: None, programs: &["magick"], essential: true, needs_admin: true, timeout_secs: 1800 },
-    ToolSpec { key: "pandoc", winget: Some("JohnMacFarlane.Pandoc"), manual_url: None, programs: &["pandoc"], essential: false, needs_admin: true, timeout_secs: 1800 },
-    ToolSpec { key: "libreoffice", winget: Some("TheDocumentFoundation.LibreOffice"), manual_url: None, programs: &["soffice", "libreoffice"], essential: false, needs_admin: true, timeout_secs: 1800 },
-    ToolSpec { key: "sevenzip", winget: Some("7zip.7zip"), manual_url: None, programs: &["7z", "7za", "7zz"], essential: false, needs_admin: true, timeout_secs: 1800 },
-    ToolSpec { key: "poppler", winget: Some("oschwartz10612.Poppler"), manual_url: None, programs: &["pdftoppm", "pdftotext"], essential: false, needs_admin: false, timeout_secs: 900 },
+    ToolSpec { key: "ffmpeg", apt_names: &["ffmpeg"], winget: Some("Gyan.FFmpeg"), manual_url: None, programs: &["ffmpeg", "ffprobe"], essential: true, needs_admin: false, timeout_secs: 900 },
+    ToolSpec { key: "imagemagick", apt_names: &["imagemagick"], winget: Some("ImageMagick.ImageMagick"), manual_url: None, programs: &["magick"], essential: true, needs_admin: true, timeout_secs: 1800 },
+    ToolSpec { key: "pandoc", apt_names: &["pandoc"], winget: Some("JohnMacFarlane.Pandoc"), manual_url: None, programs: &["pandoc"], essential: false, needs_admin: true, timeout_secs: 1800 },
+    ToolSpec { key: "libreoffice", apt_names: &["libreoffice"], winget: Some("TheDocumentFoundation.LibreOffice"), manual_url: None, programs: &["soffice", "libreoffice"], essential: false, needs_admin: true, timeout_secs: 1800 },
+    ToolSpec { key: "sevenzip", apt_names: &["7zip", "p7zip-full"], winget: Some("7zip.7zip"), manual_url: None, programs: &["7z", "7za", "7zz"], essential: false, needs_admin: true, timeout_secs: 1800 },
+    ToolSpec { key: "poppler", apt_names: &["poppler-utils"], winget: Some("oschwartz10612.Poppler"), manual_url: None, programs: &["pdftoppm", "pdftotext"], essential: false, needs_admin: false, timeout_secs: 900 },
     // Ghostscript is not on winget; it must be installed from the official page.
-    ToolSpec { key: "ghostscript", winget: None, manual_url: Some("https://ghostscript.com/releases/gsdnld.html"), programs: &["gs", "gswin64c"], essential: false, needs_admin: false, timeout_secs: 900 },
+    ToolSpec { key: "ghostscript", apt_names: &["ghostscript"], winget: None, manual_url: Some("https://ghostscript.com/releases/gsdnld.html"), programs: &["gs", "gswin64c"], essential: false, needs_admin: false, timeout_secs: 900 },
 ];
+
+// The install instruction for a missing tool, taken from the table above: the winget command
+// when the tool is distributed through winget, the official download page when it is not, and a
+// generic PATH message for the plain system tools this list does not cover. Kept here so the
+// message and the installer can never disagree, which is exactly what had drifted for poppler
+// (no arm at all), 7-Zip (an id that does not exist) and ghostscript (not on winget).
+pub(crate) fn hint_for_apt(apt_names: &str) -> String {
+    let mut parts: Vec<String> = Vec::new();
+    let mut unknown: Vec<&str> = Vec::new();
+    for name in apt_names.split_whitespace() {
+        match TOOLS.iter().find(|t| t.apt_names.contains(&name)) {
+            Some(t) => {
+                let one = match (t.winget, t.manual_url) {
+                    (Some(id), _) => format!("winget install {id}"),
+                    (None, Some(url)) => url.to_string(),
+                    (None, None) => name.to_string(),
+                };
+                if !parts.contains(&one) {
+                    parts.push(one);
+                }
+            }
+            None => unknown.push(name),
+        }
+    }
+    if !unknown.is_empty() {
+        parts.push(format!("install {} and put it on your PATH", unknown.join(", ")));
+    }
+    parts.join(" ; or ")
+}
 
 #[derive(Serialize)]
 pub struct ToolStatus {
@@ -263,5 +296,45 @@ mod tests {
         keys.dedup();
         assert_eq!(keys.len(), n, "duplicated tool key");
         assert!(TOOLS.iter().filter(|t| t.essential).count() >= 2);
+    }
+
+    #[test]
+    fn la_pista_de_instalacion_sale_de_la_lista() {
+        // poppler: the old hand-written hint had no arm for it, so a user was told to put
+        // "poppler-utils" on their PATH while the app knew the winget package all along
+        assert_eq!(hint_for_apt("poppler-utils"), "winget install oschwartz10612.Poppler");
+        // 7-Zip: the old hint used `OpenSource.7-Zip`, which is not a package on winget
+        assert_eq!(hint_for_apt("7zip"), "winget install 7zip.7zip");
+        assert_eq!(hint_for_apt("p7zip-full"), "winget install 7zip.7zip");
+        // ghostscript is genuinely not on winget, so it must never be offered as a winget command
+        let gs = hint_for_apt("ghostscript");
+        assert!(!gs.contains("winget"), "ghostscript is not on winget: {gs}");
+        assert!(gs.contains("ghostscript.com"), "{gs}");
+        // tools the table does not cover keep the generic message
+        assert_eq!(hint_for_apt("librsvg2-bin"), "install librsvg2-bin and put it on your PATH");
+        // a mixed list offers both, without repeating anything
+        let mix = hint_for_apt("unzip 7zip");
+        assert!(mix.contains("winget install 7zip.7zip") && mix.contains("unzip"), "{mix}");
+        assert_eq!(hint_for_apt("ffmpeg ffmpeg"), "winget install Gyan.FFmpeg");
+    }
+
+    // Every entry must be able to recommend itself, and no apt name may belong to two tools:
+    // that is what keeps this table the only place where the install guidance lives.
+    #[test]
+    fn cada_herramienta_recomienda_su_propio_instalador() {
+        let mut todas_las_apt: Vec<&str> = Vec::new();
+        for t in &TOOLS {
+            assert!(!t.apt_names.is_empty(), "{} has no apt name to match a hint", t.key);
+            for apt in t.apt_names {
+                let h = hint_for_apt(apt);
+                match (t.winget, t.manual_url) {
+                    (Some(id), _) => assert_eq!(h, format!("winget install {id}"), "apt {apt}"),
+                    (None, Some(url)) => assert_eq!(h, url.to_string(), "apt {apt}"),
+                    (None, None) => panic!("{} has no install path", t.key),
+                }
+                assert!(!todas_las_apt.contains(apt), "apt name {apt} used by two tools");
+                todas_las_apt.push(apt);
+            }
+        }
     }
 }

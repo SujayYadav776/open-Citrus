@@ -510,7 +510,9 @@ fn parse_size(text: &str) -> Option<(u32, u32)> {
 // Compresses a PDF with ghostscript into a temporary folder and moves it to `out` (ghostscript interprets
 // the "%" of an output name, so it is not given the final path)
 fn compress_pdf(src: &str, out: &Path) -> Result<(), String> {
-    let gs = need(&["gs"], &install_hint("ghostscript"))?;
+    // Any name of the tool counts: Windows installs gswin64c.exe and has no gs.exe, and asking
+    // for that one name alone made this fail while the settings reported ghostscript installed.
+    let gs = need(crate::installer::programs_for("ghostscript"), &install_hint("ghostscript"))?;
     let tmp = TempDir::new()?;
     let tmp_out = tmp.path().join("salida.pdf");
     let output = format!("-sOutputFile={}", st(&tmp_out));
@@ -1732,7 +1734,10 @@ mod tests {
     #[test]
     fn comprime_un_pdf() {
         let _guard = lock();
-        if !have(&["gs", "magick"]) {
+        // ghostscript through the table, not by the name "gs": have() needs every name and Windows
+        // installs gswin64c.exe with no gs.exe, so the old guard made this test return early on
+        // every Windows machine, reporting a green suite while asserting nothing.
+        if !crate::installer::is_present("ghostscript") || !tool_exists("magick") {
             return;
         }
         let dir = test_dir("pdf");

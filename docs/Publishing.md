@@ -58,4 +58,8 @@ Installing the recommended packages in an empty system downloads about **620 MB 
 
 ## Continuous integration
 
-`.github/workflows/tests.yml` runs `cargo test` on every push to `main` and on every pull request (Ubuntu 24.04). It installs the WebKitGTK libraries Tauri needs and all the conversion tools (ffmpeg, ImageMagick, pandoc, poppler, ghostscript, zip, 7z and LibreOffice), because the integration tests skip themselves when a tool is missing and would otherwise pass without testing anything. It does not build the `.deb` nor open a window; that stays in [[Manual-Testing]].
+`.github/workflows/tests.yml` runs `cargo test` on every push to `main` or `windows-port`, on every pull request, and on demand from the Actions tab (`workflow_dispatch`). It is a matrix of **ubuntu-24.04** and **windows-latest** with `fail-fast: false`, so a failure on one platform does not cancel the evidence from the other.
+
+On Linux the job installs the WebKitGTK libraries Tauri needs and all the conversion tools (ffmpeg, ImageMagick, pandoc, poppler, ghostscript, zip, 7z and LibreOffice), because the integration tests skip themselves when a tool is missing and would otherwise pass without testing anything. On Windows no tools are installed: that job still compiles the crate and runs the pure logic, the catalog scanner and the tests that are `#[cfg(windows)]`, which is what makes it worth having, but the tool-dependent tests skip there. This is why the two runners report **different totals**, and it is why behaviour that needs a real converter is still verified on a machine that has it installed, as a test that skips proves nothing.
+
+A last step prints `git ls-files --eol` for two source files, so a checkout that stops being LF says so in the log instead of failing with a message about a missing translation (see [[Languages]]). The workflow does not build the `.deb` nor open a window; that stays in [[Manual-Testing]].

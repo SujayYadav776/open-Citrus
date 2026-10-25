@@ -878,7 +878,7 @@ fn extract_archive(src: &Path, dest: &Path) -> Result<(), String> {
             if tool_exists("unzip") {
                 run("unzip", &["-q", &src, "-d", &dest])
             } else {
-                let sz = need(&["7z", "7zz", "7za"], &install_hint("unzip"))?;
+                let sz = need(&["7z", "7zz", "7za"], &install_hint("unzip 7zip"))?;
                 run(&sz, &["x", "-y", &format!("-o{dest}"), "--", &src])
             }
         }

@@ -360,15 +360,20 @@ pub fn set_interactive_radius(radius: Option<f64>) {
     *INTERACTIVE_RADIUS.lock().unwrap_or_else(|e| e.into_inner()) = radius;
 }
 
-// True when the cursor (physical, relative to the window) is outside a circle of `radius`
-// logical pixels centred on the window.
+// True when the cursor is outside a circle of `radius` logical pixels centred on the window.
+// NOTE: `cursor_position()` returns GLOBAL screen coordinates (physical) - like the rest of this
+// file assumes - so we subtract the window's own global origin to get a window-relative position
+// before measuring from the centre. (Forgetting this made the whole window click-through: a screen
+// coordinate minus half the window size is always far outside the circle.)
 fn outside_circle(window: &tauri::WebviewWindow, radius: f64) -> bool {
-    let (Ok(pos), Ok(size)) = (window.cursor_position(), window.inner_size()) else {
+    let (Ok(cursor), Ok(size), Ok(origin)) =
+        (window.cursor_position(), window.inner_size(), window.outer_position())
+    else {
         return false; // can't tell: stay interactive rather than swallow the pointer
     };
     let scale = window.scale_factor().unwrap_or(1.0);
-    let dx = pos.x - size.width as f64 / 2.0;
-    let dy = pos.y - size.height as f64 / 2.0;
+    let dx = (cursor.x - origin.x as f64) - size.width as f64 / 2.0;
+    let dy = (cursor.y - origin.y as f64) - size.height as f64 / 2.0;
     (dx * dx + dy * dy).sqrt() / scale > radius
 }
 

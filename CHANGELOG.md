@@ -1,5 +1,39 @@
 # Release notes
 
+## v1.2.5 - Citrus (Windows)
+
+Fixes the v1.2.4 click‑through (it had disabled the whole window, not just the empty ring)
+and turns the first‑run tools banner into a proper setup checklist.
+
+### What's new
+
+- **Click‑through now only affects the empty ring.** The v1.2.4 feature compared a *global*
+  screen cursor coordinate against the window's own size, so the computed distance was always
+  outside the circle and the *entire* window - including the drop circle - ignored the mouse:
+  you could not hover or drop files on it. The poller now converts the cursor to a
+  window‑relative position first, so only the transparent area outside the circle falls
+  through to the desktop, while the circle stays interactive.
+- **First‑run setup checklist.** The tools banner is now a checklist of every required tool
+  (FFmpeg, ImageMagick, pandoc, LibreOffice, 7‑Zip, Poppler, Ghostscript), each row showing a
+  status mark - ✓ installed, ○ missing, … installing, ✕ failed - with a "X of N ready"
+  counter on top. **Install all** runs the in‑app winget installer and ticks rows off live.
+- **Dismissible and re‑openable.** "Not now" hides the checklist and leaves a small **Setup**
+  pill on the home card to bring it back anytime. It only appears when at least one tool is
+  missing, so a fully set‑up machine stays uncluttered.
+
+### Release artifacts
+
+| File | Size | SHA-256 |
+|---|---|---|
+| `Citrus_1.2.5_x64-setup.exe` (NSIS installer) | 1,692,415 B (1.61 MiB) | `acf81f1ec5e8ef384aac1ef5f397ae343d196e83e121364acbdffcaed8ed362b` |
+| `citrus.exe` (portable, x64) | 5,216,256 B (4.97 MiB) | `18515fb78e3caf2840d8ac3d540ad58cae8a4c38c37bb3df3192bff70caca00b` |
+
+### Verification
+
+- Frontend only for the checklist; the click‑through fix is in `wheel.rs`.
+- `cargo test --lib`: 131 passed, 0 failed, 1 ignored.
+- GitHub Actions green on both ubuntu-24.04 and windows-latest.
+
 ## v1.2.4 - Citrus (Windows)
 
 Fixes the drop card swallowing desktop clicks: the empty area around the circle is now

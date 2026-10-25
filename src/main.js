@@ -503,73 +503,115 @@ const NOMBRES_HERR = {
   ghostscript: "Ghostscript",
 };
 
-let avisoEstado = null; // { herr:[objs], status:{key:phase}, linea:'' } while installing from the banner
-let avisoFaltan = []; // missing tool objects shown when idle
+let avisoHerr = []; // every required tool with its live present flag (the checklist rows)
+let avisoEstado = null; // { status:{key:phase}, linea:'' } while installing from the checklist
 
-// Shows the banner on the home screen when some tool is missing and it has not been dismissed yet.
+// Loads the checklist. On a fresh device (not dismissed yet) it shows the checklist banner; if it
+// was dismissed before it shows a small pill to reopen it. Does nothing when everything is present.
 async function iniciarAvisoHerramientas() {
   try {
     const [prefs, estado] = await Promise.all([api.get_prefs(), api.get_tool_status()]);
-    const faltan = estado.filter((h) => !h.present);
-    if (prefs.setup_seen || faltan.length === 0) return;
+    avisoHerr = estado;
     avisoEstado = null;
-    avisoFaltan = faltan;
-    pintarAviso();
-    $("aviso-herr").hidden = false;
+    const faltan = estado.filter((h) => !h.present);
+    if (faltan.length === 0) {
+      $("aviso-herr").hidden = true;
+      $("aviso-herr-reabrir").hidden = true;
+    } else if (prefs.setup_seen) {
+      $("aviso-herr").hidden = true;
+      $("aviso-herr-reabrir").hidden = false;
+    } else {
+      $("aviso-herr-reabrir").hidden = true;
+      pintarAviso();
+      $("aviso-herr").hidden = false;
+    }
   } catch (e) {
-    /* the banner is optional: if the status call fails, the app still works */
+    /* the checklist is optional: if the status call fails, the app still works */
   }
 }
 
-// Per-package status text for a banner row (empty when idle / installed).
-function estadoTextoAviso(h) {
-  if (avisoEstado && avisoEstado.status[h.key]) {
-    const s = avisoEstado.status[h.key];
-    if (s === "installing") return t("tools.stInstalling");
-    if (s === "done") return t("tools.stDone");
-    if (s === "failed") return t("tools.stFailed");
-    if (s === "timeout") return t("tools.stTimeout");
-    if (s === "cancelled") return t("tools.cancelled");
-    return t("tools.stWaiting");
+// Re-opens the checklist from the home pill (after it was dismissed).
+async function mostrarChecklist() {
+  try {
+    avisoHerr = await api.get_tool_status();
+  } catch (e) {
+    return;
   }
-  return "";
+  avisoEstado = null;
+  $("aviso-herr-reabrir").hidden = true;
+  pintarAviso();
+  $("aviso-herr").hidden = false;
 }
 
-// Renders the banner: a step list (with live per-package status while installing) and the right buttons.
+// State of one row: the live install phase while installing, else installed / missing.
+function estadoFila(h) {
+  if (avisoEstado && avisoEstado.status[h.key]) return avisoEstado.status[h.key];
+  return h.present ? "ok" : "falta";
+}
+
+function marcaFila(estado) {
+  if (estado === "ok" || estado === "done") return "✓";
+  if (estado === "failed" || estado === "timeout" || estado === "cancelled") return "✕";
+  if (estado === "installing") return "…";
+  return "○"; // falta / waiting
+}
+
+function textoFila(estado) {
+  const claves = {
+    installing: "tools.stInstalling", done: "tools.stDone", failed: "tools.stFailed",
+    timeout: "tools.stTimeout", cancelled: "tools.cancelled", waiting: "tools.stWaiting",
+    ok: "tools.present", falta: "tools.missingShort",
+  };
+  return t(claves[estado] || "tools.missingShort");
+}
+
+function claseFila(estado) {
+  if (estado === "ok" || estado === "done") return "aviso-herr-ok";
+  if (estado === "installing" || estado === "waiting") return "aviso-herr-inst";
+  if (estado === "failed" || estado === "timeout" || estado === "cancelled") return "aviso-herr-fail";
+  return "aviso-herr-falta";
+}
+
+// Renders the checklist: every required tool as a row (check mark + name + status), a progress
+// count, the live install line while installing, and the right buttons.
 function pintarAviso() {
   const instalando = !!avisoEstado;
-  const items = instalando ? avisoEstado.herr : avisoFaltan;
+  let listos = 0;
   $("aviso-herr-lista").replaceChildren(
-    ...items.map((h) => {
-      const li = crear("li", "aviso-herr-item");
+    ...avisoHerr.map((h) => {
+      const estado = estadoFila(h);
+      if (estado === "ok" || estado === "done") listos++;
+      const li = crear("li", "aviso-herr-item " + claseFila(estado));
+      li.append(crear("span", "aviso-herr-marca", marcaFila(estado)));
       const nom = crear("span", "aviso-herr-nom", NOMBRES_HERR[h.key] || h.key);
-      if (!instalando && h.needs_admin) nom.append(crear("span", "aviso-herr-admin", " · " + t("tools.needsAdmin")));
+      if (!instalando && !h.present && h.needs_admin) nom.append(crear("span", "aviso-herr-admin", " · " + t("tools.needsAdmin")));
       li.append(nom);
-      li.append(crear("span", "aviso-herr-est", estadoTextoAviso(h)));
+      li.append(crear("span", "aviso-herr-est", textoFila(estado)));
       return li;
     })
   );
+  $("aviso-herr-contador").textContent = t("tools.checklistProgress", { done: listos, total: avisoHerr.length });
   const progreso = $("aviso-herr-progreso");
   progreso.hidden = !instalando;
   progreso.textContent = instalando ? avisoEstado.linea : "";
-  const instalable = items.some((h) => h.winget);
-  $("aviso-herr-instalar").hidden = instalando || !instalable;
+  const quedan = avisoHerr.some((h) => !h.present && h.winget);
+  $("aviso-herr-instalar").hidden = instalando || !quedan;
   $("aviso-herr-instalar").disabled = false;
   $("aviso-herr-min").hidden = !instalando;
   $("aviso-herr-min").textContent = t("tools.minimize");
   $("aviso-herr-luego").hidden = instalando;
   $("aviso-herr-luego").disabled = false;
-  $("aviso-herr-texto").textContent = instalando ? t("tools.installing") : instalable ? t("tools.missing") : t("tools.manualOnly");
+  $("aviso-herr-texto").textContent = instalando ? t("tools.installing") : t("tools.checklistTitle");
   $("aviso-herr-instalar").textContent = t("tools.installAll");
   $("aviso-herr-luego").textContent = t("tools.later");
+  $("aviso-herr-reabrir").textContent = t("tools.reopen");
 }
 
 async function instalarDesdeAviso() {
-  const estado = await api.get_tool_status();
-  const faltan = estado.filter((h) => !h.present && h.winget);
+  const faltan = avisoHerr.filter((h) => !h.present && h.winget);
   if (faltan.length === 0) return;
   const keys = faltan.map((h) => h.key);
-  avisoEstado = { herr: faltan, status: {}, linea: "" };
+  avisoEstado = { status: {}, linea: "" };
   keys.forEach((k, i) => (avisoEstado.status[k] = i === 0 ? "installing" : "waiting"));
   if (api.set_install_taskbar) api.set_install_taskbar(true);
   pintarAviso();
@@ -605,12 +647,14 @@ async function instalarDesdeAviso() {
     if (quitar) quitar();
     if (api.set_install_taskbar) api.set_install_taskbar(false);
   }
-  const tras = await api.get_tool_status().catch(() => []);
-  const faltanTras = tras.filter((h) => !h.present);
+  try {
+    avisoHerr = await api.get_tool_status();
+  } catch (e) {}
   avisoEstado = null;
-  if (faltanTras.length === 0) $("aviso-herr").hidden = true;
-  else {
-    avisoFaltan = faltanTras;
+  if (avisoHerr.length > 0 && avisoHerr.every((h) => h.present)) {
+    $("aviso-herr").hidden = true;
+    $("aviso-herr-reabrir").hidden = true;
+  } else {
     pintarAviso();
   }
 }
@@ -620,6 +664,7 @@ async function descartarAviso() {
     await api.mark_setup_seen();
   } catch (e) {}
   $("aviso-herr").hidden = true;
+  $("aviso-herr-reabrir").hidden = false;
 }
 
 // ---------- Rueda ----------
@@ -1564,6 +1609,7 @@ async function iniciar() {
   $("aviso-herr-instalar").addEventListener("click", instalarDesdeAviso);
   $("aviso-herr-min").addEventListener("click", () => api.minimize_window && api.minimize_window());
   $("aviso-herr-luego").addEventListener("click", descartarAviso);
+  $("aviso-herr-reabrir").addEventListener("click", mostrarChecklist);
   $("rueda-aviso").addEventListener("click", instalarFaltantesDeRueda);
   document.addEventListener("click", alHacerClic);
   document.addEventListener("keydown", alPulsarTecla);

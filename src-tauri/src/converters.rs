@@ -6,7 +6,7 @@ use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use crate::config::{self, Config};
-use crate::lang::{cancelled_error, has_code, tr, CANCELLED};
+use crate::lang::{cancelled_error, coded, has_code, tr, CANCELLED};
 use crate::tr;
 use serde::Serialize;
 use tauri::{AppHandle, Emitter};
@@ -204,7 +204,21 @@ pub(crate) fn need(names: &[&str], hint: &str) -> Result<String, String> {
             return Ok(name.to_string());
         }
     }
-    Err(tr!("{name} not found. Install it with: {hint}", "No se encontró {name}. Instálalo con: {hint}", name = names[0], hint = hint))
+    Err(missing_tool_error(names, hint))
+}
+
+// The error of a tool that is not installed. When the program belongs to one of the tools in
+// installer::TOOLS the text carries a "[toolmissing:key]" code in front, so the interface can put
+// the one-click install of exactly that tool on the error card. The code is never shown: main.js
+// strips it with sinCodigo, the same way it does with [cancelled] and [optimized]. A program that
+// is not in the list (zip, tar) gets the plain message, because there is nothing to offer for it.
+// It is a separate function so it can be tested without depending on the tools installed here.
+fn missing_tool_error(names: &[&str], hint: &str) -> String {
+    let text = tr!("{name} not found. Install it with: {hint}", "No se encontró {name}. Instálalo con: {hint}", name = names[0], hint = hint);
+    match crate::installer::tool_key_for_program(names[0]) {
+        Some(key) => coded(&format!("[toolmissing:{key}]"), &text),
+        None => text,
+    }
 }
 
 fn run(program: &str, args: &[&str]) -> Result<(), String> {
@@ -1974,6 +1988,24 @@ trailer<</Root 1 0 R/Size 6>>\n%%EOF\n";
         );
         // With several options it is enough that one exists
         assert_eq!(need(&["herramienta_que_no_existe", "sh"], "x"), Ok("sh".to_string()));
+    }
+
+    #[test]
+    fn el_error_de_herramienta_lleva_su_codigo() {
+        use crate::lang::{set_lang, Lang};
+        set_lang(Lang::En);
+        // The code names the tool of the table, not the program, and the text the user reads is
+        // unchanged: the interface strips the code before showing it.
+        let e = missing_tool_error(&["magick"], "winget install ImageMagick.ImageMagick");
+        assert!(has_code(&e, "[toolmissing:imagemagick]"), "{e}");
+        assert!(e.ends_with("magick not found. Install it with: winget install ImageMagick.ImageMagick"), "{e}");
+        // every program name of a tool resolves to the same entry
+        assert!(has_code(&missing_tool_error(&["soffice"], "x"), "[toolmissing:libreoffice]"));
+        assert!(has_code(&missing_tool_error(&["pdftoppm"], "x"), "[toolmissing:poppler]"));
+        assert!(has_code(&missing_tool_error(&["gs"], "x"), "[toolmissing:ghostscript]"));
+        assert!(has_code(&missing_tool_error(&["7z"], "x"), "[toolmissing:sevenzip]"));
+        // a program the table does not know has no code: there is nothing for the app to install
+        assert_eq!(missing_tool_error(&["tar"], "x"), "tar not found. Install it with: x");
     }
 
     #[test]

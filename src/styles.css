@@ -280,6 +280,28 @@ html, body {
 
 .pildora.varios { padding: 4px 10px; font-size: 12px; white-space: nowrap; }
 
+/* The "you may need this tool" note under the pill. #centro has pointer-events: none so the wheel
+   receives the clicks through it, so this asks for them back. Only theme variables, like the pill,
+   to stay legible in the two themes; it is quieter than the pill on purpose. */
+.rueda-aviso {
+  pointer-events: auto;
+  margin: 0;
+  padding: 2px 9px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--pildora);
+  color: var(--suave);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: color 120ms;
+}
+
+.rueda-aviso:hover:not(:disabled), .rueda-aviso:focus-visible { color: var(--texto); }
+.rueda-aviso:disabled { cursor: default; }
+.rueda-aviso[hidden] { display: none; }
+
 .insignia {
   position: absolute;
   top: -8px;

@@ -6,6 +6,7 @@
   "wheel.conversion": "Formatos de conversão",
   "wheel.tools": "FERRAMENTAS",
   "wheel.toolsCenter": "Ferramentas",
+  "wheel.needsTools": "Precisa de {names}",
   "wheel.openTools": "Abrir ferramentas",
   "wheel.convertTo": "Converter para {format}",
   "wheel.toolAria": "Ferramenta {name}",

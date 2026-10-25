@@ -68,13 +68,22 @@ function formatearTamano(bytes) {
   return window.I18n.num(bytes / 1024 ** 3, 1) + " GB";
 }
 
-// Backend errors carry a code in front: "[cancelled] text" or "[optimized] text"
+// Backend errors carry a code in front: "[cancelled] text" or "[optimized] text", and
+// "[toolmissing:ffmpeg] text" when a converter tool is not installed (the key is the one of
+// installer::TOOLS, so the interface can offer its install). The code is for us; the user only
+// ever sees the text.
 function conCodigo(mensaje, codigo) {
   return String(mensaje).includes("[" + codigo + "]");
 }
 
 function sinCodigo(mensaje) {
-  return String(mensaje).replace(/^Error: /, "").replace(/\[(cancelled|optimized)\]\s*/, "");
+  return String(mensaje).replace(/^Error: /, "").replace(/\[(cancelled|optimized|toolmissing:[a-z]+)\]\s*/, "");
+}
+
+// The key of the tool a "[toolmissing:key]" error is about, or null if it is another error.
+function herramientaQueFalta(mensaje) {
+  const m = /^\[toolmissing:([a-z]+)\]/.exec(String(mensaje).replace(/^Error: /, ""));
+  return m ? m[1] : null;
 }
 
 // Language of the interface: decided by the backend; in demo, ?lang=es|en (English by default)
@@ -832,6 +841,83 @@ function mostrarError(mensaje, titulo) {
     "tarjeta"
   );
   tarjeta.setAttribute("role", "alert");
+  // If a converter tool is missing, offer it here: the user should not have to open a terminal to
+  // act on a message the app itself wrote.
+  const clave = herramientaQueFalta(mensaje);
+  if (clave) ofrecerInstalacion(tarjeta, clave);
+}
+
+// Copies text and reports it on the given element. ajustes.js has its own private version inside
+// its closure, so main.js needs one too.
+function copiarYavisar(texto, elemento, mensaje) {
+  if (!(navigator.clipboard && navigator.clipboard.writeText)) return;
+  navigator.clipboard.writeText(texto).then(() => {
+    elemento.textContent = mensaje;
+  }).catch(() => {});
+}
+
+// The install control of the tool named by the error, added to the card before the Close button.
+// A tool with a winget package gets the one-click install; one without (ghostscript) gets its
+// official download page copied instead. The labels are the existing ones from the settings.
+async function ofrecerInstalacion(tarjeta, clave) {
+  let h;
+  try {
+    h = (await api.get_tool_status()).find((x) => x.key === clave);
+  } catch (e) {
+    return; // no status: the card is already complete, the text alone is still useful
+  }
+  if (!h || h.present || (!h.winget && !h.manual_url)) return;
+
+  const estado = crear("p", "detalle", "");
+  const b = boton(h.winget ? t("tools.install") : t("tools.manual"), () => {
+    if (!h.winget) {
+      copiarYavisar(h.manual_url, estado, t("tools.manualCopied"));
+      return;
+    }
+    b.disabled = true;
+    estado.textContent = t("tools.installing");
+    instalarDesdeError(h.key, b, estado);
+  });
+  const fila = crear("div", "error-herr");
+  fila.append(b);
+  if (h.needs_admin) fila.append(crear("span", "detalle", " · " + t("tools.needsAdmin")));
+  tarjeta.insertBefore(fila, tarjeta.lastChild);
+  tarjeta.append(estado);
+}
+
+// One install started from the error card, driven by the same "install-progress" events the
+// first-run banner renders as a step list. The button comes back on any failure so the user can
+// retry without closing the card.
+async function instalarDesdeError(clave, botonQueInicia, estado) {
+  const nombre = NOMBRES_HERR[clave] || clave;
+  const quitar = await api.on_install_progress((ev) => {
+    if (ev.key !== clave) return;
+    if (ev.phase === "log") {
+      if (ev.line) estado.textContent = ev.line;
+    } else if (ev.phase === "done") {
+      estado.textContent = t("tools.stDone");
+    } else if (ev.phase === "timeout") {
+      estado.textContent = t("tools.timedOutLine", { name: nombre });
+      botonQueInicia.disabled = false;
+    } else if (ev.phase === "error") {
+      estado.textContent = t("tools.stFailed");
+      botonQueInicia.disabled = false;
+    } else if (ev.phase === "cancelled") {
+      estado.textContent = t("tools.cancelled");
+      botonQueInicia.disabled = false;
+    }
+  });
+  try {
+    await api.install_tools([clave]);
+  } catch (e) {
+    estado.textContent = sinCodigo(e);
+    botonQueInicia.disabled = false;
+  } finally {
+    if (quitar) quitar();
+  }
+  // Only the truth matters here: the tool is either resolvable now or it is not.
+  const tras = (await api.get_tool_status().catch(() => [])).find((x) => x.key === clave);
+  if (tras) estado.textContent = tras.present ? t("tools.stDone") : t("tools.stFailed");
 }
 
 // Name the output will have with a custom name: the user's one + the extension of the original

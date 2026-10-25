@@ -75,6 +75,13 @@ pub(crate) fn hint_for_apt(apt_names: &str) -> String {
     parts.join(" ; or ")
 }
 
+// Which tool a program name belongs to, using the same rule as detection: any of its program
+// names counts. The converters need this to put the code of the tool that is actually missing in
+// front of the error, so the interface can offer its one-click install.
+pub(crate) fn tool_key_for_program(program: &str) -> Option<&'static str> {
+    TOOLS.iter().find(|t| t.programs.contains(&program)).map(|t| t.key)
+}
+
 #[derive(Serialize)]
 pub struct ToolStatus {
     key: &'static str,

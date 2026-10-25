@@ -35,7 +35,7 @@ Aliases: `jpeg`→`jpg`, `tif`→`tiff`, `heif`→`heic`, `htm`→`html`, `tgz`�
 - **Output names:** `name.ext`, and if it exists `name 2.ext`, `name 3.ext`... (page folders: `name_pages 2`).
 - **Folder as input:** `Kind::Folder`; `convert_folder` compresses from the parent folder, including the name inside the archive.
 - The wheel commands (`initial_paths`, `file_info`, `show_wheel`, `cancel`, `quit`) are in `src-tauri/src/wheel.rs`.
-- Errors: a short message in the active language (see [[Languages]]); if a tool is missing, it gives the install command for the platform (`apt` on Linux, `winget` on Windows) from `spawn::install_hint()`.
+- Errors: a short message in the active language (see [[Languages]]); if a tool is missing, it gives the install command for the platform (`apt` on Linux, `winget` on Windows) from `spawn::install_hint()`, and when that tool is one of the entries in `installer::TOOLS` the message also carries a `[toolmissing:<key>]` code in front, so the wheel can offer the install instead of only describing it (see [[Tauri-Commands]]).
 
 ## Decisions
 

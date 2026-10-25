@@ -25,7 +25,7 @@ The app is launched in two ways: `citrus /path/file` (from the Nautilus right cl
 - `cancel() -> ()`: cancels the conversion in progress (kills the child process and deletes the half-written output). The pending `convert` ends with the `[cancelled]` error.
 - `quit() -> ()`: closes the app.
 - `get_language() -> String`: the code of the active language (`"en"`, `"es"`, `"pt"`, `"fr"`; see [[Languages]]); the interface asks for it before painting anything.
-- **Stable error codes:** the cancellation and "already optimized" errors arrive as `"[cancelled] <text>"` and `"[optimized] <text>"` (the text is in the active language). The interface decides by the code, never by the text.
+- **Stable error codes:** the cancellation and "already optimized" errors arrive as `"[cancelled] <text>"` and `"[optimized] <text>"` (the text is in the active language). When a converter tool is not installed the error is `"[toolmissing:<key>] <text>"`, where `<key>` is that tool's entry in `installer::TOOLS` (`ffmpeg`, `imagemagick`, `pandoc`, `libreoffice`, `sevenzip`, `poppler`, `ghostscript`), so the interface can put the install control for that exact tool on the error card. A program that is not in that list (`zip`, `tar`, `unzip`) arrives without a code, because the app has nothing to install for it. The interface decides by the code, never by the text.
 
 ### Real progress and thumbnail
 

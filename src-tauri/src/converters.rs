@@ -2328,14 +2328,23 @@ trailer<</Root 1 0 R/Size 6>>\n%%EOF\n";
     #[test]
     fn pdf_a_docx_deja_visible_el_texto_sobre_una_banda_de_color() {
         let _g = lock();
-        if !tool_exists("gs") || !tool_exists("magick") || !tool_exists("unzip") || !tool_exists("zip") || !(tool_exists("soffice") || tool_exists("libreoffice")) {
+        // Any name of the tool counts, and the resolved one is what the calls below run: Windows
+        // ships gswin64c.exe with no gs.exe, so the old check on "gs" made this skip there.
+        let Some(gs) = crate::installer::programs_for("ghostscript")
+            .iter()
+            .find(|p| tool_exists(p))
+            .copied()
+        else {
+            return;
+        };
+        if !tool_exists("magick") || !tool_exists("unzip") || !tool_exists("zip") || !(tool_exists("soffice") || tool_exists("libreoffice")) {
             return;
         }
         let dir = test_dir("pdf_banda");
         // A PDF with a purple banner and white text on it, made with ghostscript
         let ps = "0.36 0.18 0.57 setrgbcolor 40 640 520 90 rectfill 1 setgray /Helvetica-Bold findfont 34 scalefont setfont 60 675 moveto (WHITE ON BANNER) show 0 setgray /Helvetica findfont 14 scalefont setfont 60 560 moveto (Normal text below the banner) show showpage";
         std::fs::write(dir.join("banda.ps"), ps).unwrap();
-        run("gs", &["-q", "-dNOPAUSE", "-dBATCH", "-sDEVICE=pdfwrite", &format!("-sOutputFile={}", st(&dir.join("banda.pdf"))), &st(&dir.join("banda.ps"))]).unwrap();
+        run(gs, &["-q", "-dNOPAUSE", "-dBATCH", "-sDEVICE=pdfwrite", &format!("-sOutputFile={}", st(&dir.join("banda.pdf"))), &st(&dir.join("banda.ps"))]).unwrap();
         let docx = convert_blocking(&st(&dir.join("banda.pdf")), "docx").unwrap();
         let xml = String::from_utf8_lossy(&std::process::Command::new("unzip").args(["-p", docx.as_str(), "word/document.xml"]).output().unwrap().stdout).to_string();
         assert!(xml.contains("z-index:-251658240"), "the banner must go behind the text");
@@ -2343,7 +2352,7 @@ trailer<</Root 1 0 R/Size 6>>\n%%EOF\n";
         run("soffice", &["-env:UserInstallation=file:///tmp/citrus_banda_profile", "--headless", "--convert-to", "pdf", "--outdir", &st(&dir.join("render")), &docx]).ok();
         let rendered = dir.join("render/banda.pdf");
         if rendered.exists() {
-            run("gs", &["-q", "-dNOPAUSE", "-dBATCH", "-sDEVICE=png16m", "-r50", "-dFirstPage=1", "-dLastPage=1", &format!("-sOutputFile={}", st(&dir.join("pagina.png"))), &st(&rendered)]).unwrap();
+            run(gs, &["-q", "-dNOPAUSE", "-dBATCH", "-sDEVICE=png16m", "-r50", "-dFirstPage=1", "-dLastPage=1", &format!("-sOutputFile={}", st(&dir.join("pagina.png"))), &st(&rendered)]).unwrap();
             // The banner is at the top of the page: look at the band between 6% and 14% of the height
             let output = std::process::Command::new("magick")
                 .args([&st(&dir.join("pagina.png")), "-gravity", "North", "-crop", "100%x9%+0+55", "+repage", "-colorspace", "gray", "-threshold", "85%", "-format", "%[fx:mean]", "info:"])

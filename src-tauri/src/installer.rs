@@ -37,7 +37,7 @@ pub struct ToolSpec {
 // Order matters: the essentials first, then the ones that unlock extra formats.
 const TOOLS: [ToolSpec; 7] = [
     ToolSpec { key: "ffmpeg", apt_names: &["ffmpeg"], winget: Some("Gyan.FFmpeg"), manual_url: None, programs: &["ffmpeg", "ffprobe"], essential: true, needs_admin: false, timeout_secs: 900 },
-    ToolSpec { key: "imagemagick", apt_names: &["imagemagick"], winget: Some("ImageMagick.ImageMagick"), manual_url: None, programs: &["magick"], essential: true, needs_admin: true, timeout_secs: 1800 },
+    ToolSpec { key: "imagemagick", apt_names: &["imagemagick"], winget: Some("ImageMagick.ImageMagick"), manual_url: None, programs: &["magick", "convert"], essential: true, needs_admin: true, timeout_secs: 1800 },
     ToolSpec { key: "pandoc", apt_names: &["pandoc"], winget: Some("JohnMacFarlane.Pandoc"), manual_url: None, programs: &["pandoc"], essential: false, needs_admin: true, timeout_secs: 1800 },
     ToolSpec { key: "libreoffice", apt_names: &["libreoffice"], winget: Some("TheDocumentFoundation.LibreOffice"), manual_url: None, programs: &["soffice", "libreoffice"], essential: false, needs_admin: true, timeout_secs: 1800 },
     ToolSpec { key: "sevenzip", apt_names: &["7zip", "p7zip-full"], winget: Some("7zip.7zip"), manual_url: None, programs: &["7z", "7za", "7zz"], essential: false, needs_admin: true, timeout_secs: 1800 },
@@ -112,6 +112,15 @@ fn present(programs: &[&str]) -> bool {
 // unknown key is not present, so a typo can never report a tool as missing.
 pub(crate) fn is_present(key: &str) -> bool {
     TOOLS.iter().find(|t| t.key == key).is_some_and(|t| present(t.programs))
+}
+
+// The program names this tool answers to. Anything that runs a tool asks for this list instead of
+// repeating one name: a Windows Ghostscript install ships gswin64c.exe and no gs.exe, so the PDF
+// compressor, hard-coded to "gs", failed on machines where this same table reported the tool
+// installed. An unknown key gives an empty list, which resolves to nothing, so a typo can never
+// run a program by accident.
+pub(crate) fn programs_for(key: &str) -> &'static [&'static str] {
+    TOOLS.iter().find(|t| t.key == key).map(|t| t.programs).unwrap_or(&[])
 }
 
 #[tauri::command]
@@ -379,6 +388,27 @@ mod tests {
         let mix = hint_for_apt("unzip 7zip");
         assert!(mix.contains("winget install 7zip.7zip") && mix.contains("unzip"), "{mix}");
         assert_eq!(hint_for_apt("ffmpeg ffmpeg"), "winget install Gyan.FFmpeg");
+    }
+
+    // The program lists are what several callers rely on: compress_pdf(), the settings and the
+    // test guards. Pinning the names here is what stops a list being narrowed back to one entry
+    // and silently breaking a platform again.
+    #[test]
+    fn los_nombres_de_cada_herramienta_se_mantienen() {
+        // Windows ships gswin64c.exe and no gs.exe; with only "gs" in the list the PDF compressor
+        // failed there while this same table reported the tool installed.
+        let gs = programs_for("ghostscript");
+        assert!(gs.contains(&"gswin64c"), "windows name missing: {gs:?}");
+        assert_eq!(gs.first().copied(), Some("gs"), "the unix name must stay first");
+        // the names the converters pass to need() have to be in the lists that detect the tool
+        assert!(programs_for("imagemagick").contains(&"convert"));
+        assert!(programs_for("imagemagick").contains(&"magick"));
+        assert!(programs_for("libreoffice").contains(&"soffice"));
+        assert!(programs_for("sevenzip").contains(&"7z"));
+        assert!(programs_for("poppler").contains(&"pdftoppm"));
+        // a key that is not in the table resolves to nothing, never to some other program
+        assert!(programs_for("no-existe").is_empty());
+        assert!(!is_present("no-existe"));
     }
 
     // Every entry must be able to recommend itself, and no apt name may belong to two tools:

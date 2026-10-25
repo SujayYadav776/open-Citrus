@@ -87,6 +87,7 @@ pub fn run() {
             config::reset_formats,
             config::mark_setup_seen,
             converters::get_targets,
+            converters::missing_tools,
             converters::convert,
             converters::get_targets_many,
             converters::take_warnings,

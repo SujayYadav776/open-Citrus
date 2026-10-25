@@ -129,6 +129,30 @@ pub(crate) fn type_targets(kind: Kind) -> &'static [&'static str] {
     }
 }
 
+// The tools that the formats of a kind generally need, by key of installer::TOOLS.
+//
+// Deliberately coarse. The exact question, which recipe runs which program, is answered by the
+// convert_* functions below, and copying that answer here would create a second source of truth
+// of the kind that made install_hint() lie about poppler, 7-Zip and ghostscript. This only
+// supports the warning shown on the wheel before the user clicks, so it may be imprecise in the
+// harmless direction. Nothing is ever hidden because of it: a wrong entry can only say "you may
+// need this tool", it can never remove a format that works.
+//
+// Every arm has at least one tool on purpose. An empty list would read as "this kind needs
+// nothing" and could quietly become true by forgetting to update it.
+pub(crate) fn tools_for_kind(kind: Kind) -> &'static [&'static str] {
+    match kind {
+        Kind::Image => &["imagemagick"],
+        Kind::Audio | Kind::Video | Kind::Subtitle => &["ffmpeg"],
+        Kind::Pdf => &["poppler"],
+        Kind::Document | Kind::Slides | Kind::Spreadsheet => &["libreoffice", "pandoc"],
+        Kind::Archive => &["sevenzip"],
+        // packing a folder normally uses `zip`, which has no entry here because there is nothing
+        // to offer for it; 7-Zip is the fallback the app can actually install
+        Kind::Folder => &["sevenzip"],
+    }
+}
+
 // true if the file is already in that format (jpeg counts as jpg). A folder never is:
 // "data.zip" is still a folder that can be compressed to zip.
 fn is_already(path: &Path, format: &str) -> bool {
@@ -1369,6 +1393,25 @@ fn convert_many_with(
 #[tauri::command]
 pub fn get_targets(path: String) -> Vec<String> {
     shown_targets_with(Path::new(&path), &config::current())
+}
+
+// The tools that these paths may need and are not installed, as keys of installer::TOOLS. Same
+// shape as get_targets_many, so the interface can ask for the whole selection at once.
+// It only feeds the warning on the wheel: it never removes a target, because being wrong here
+// must not be able to hide a conversion that actually works.
+#[tauri::command]
+pub fn missing_tools(paths: Vec<String>) -> Vec<String> {
+    let mut keys: Vec<String> = Vec::new();
+    for path in &paths {
+        if let Some(kind) = category(Path::new(path)) {
+            for tool in tools_for_kind(kind) {
+                if !crate::installer::is_present(tool) && !keys.iter().any(|k| k == tool) {
+                    keys.push((*tool).to_string());
+                }
+            }
+        }
+    }
+    keys
 }
 
 #[tauri::command]

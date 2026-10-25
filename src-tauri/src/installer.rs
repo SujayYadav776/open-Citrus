@@ -107,6 +107,13 @@ fn present(programs: &[&str]) -> bool {
     programs.iter().any(|p| find_program(p).is_some())
 }
 
+// Whether the tool of this key is resolvable, with the same rule as detection: any of its program
+// names counts. converters::missing_tools() asks this instead of reading the table itself. An
+// unknown key is not present, so a typo can never report a tool as missing.
+pub(crate) fn is_present(key: &str) -> bool {
+    TOOLS.iter().find(|t| t.key == key).is_some_and(|t| present(t.programs))
+}
+
 #[tauri::command]
 pub fn get_tool_status() -> Vec<ToolStatus> {
     TOOLS
@@ -327,6 +334,31 @@ mod tests {
         keys.dedup();
         assert_eq!(keys.len(), n, "duplicated tool key");
         assert!(TOOLS.iter().filter(|t| t.essential).count() >= 2);
+    }
+
+    // converters::tools_for_kind() is the coarse "what may a file of this kind need" table behind
+    // the wheel warning. It is allowed to be imprecise, it is not allowed to name a tool that does
+    // not exist here, and no kind may end up claiming that it needs nothing.
+    #[test]
+    fn las_herramientas_por_tipo_de_archivo_son_reales() {
+        use crate::converters::{tools_for_kind, Kind};
+        const TODOS: [Kind; 10] = [
+            Kind::Image, Kind::Audio, Kind::Video, Kind::Pdf, Kind::Document,
+            Kind::Slides, Kind::Spreadsheet, Kind::Subtitle, Kind::Archive, Kind::Folder,
+        ];
+        for kind in TODOS {
+            let herramientas = tools_for_kind(kind);
+            assert!(!herramientas.is_empty(), "{kind:?} says it needs no tool");
+            for key in herramientas {
+                let spec = TOOLS.iter().find(|t| t.key == *key)
+                    .unwrap_or_else(|| panic!("{kind:?} names an unknown tool: {key}"));
+                assert!(
+                    spec.winget.is_some() || spec.manual_url.is_some(),
+                    "{kind:?} names {key}, which has no install path"
+                );
+                assert!(!spec.programs.is_empty(), "{key} has no program names");
+            }
+        }
     }
 
     #[test]

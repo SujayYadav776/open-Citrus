@@ -321,6 +321,8 @@ const api = demo
         if (paths.length > 1) return ["jpg", "webp", "gif", "bmp", "tiff", "avif"];
         return DESTINOS_DEMO[claseDemo(paths[0])] || DESTINOS_DEMO.audio;
       },
+      // the same fixture the banner uses, so the wheel warning can be seen without a backend
+      missing_tools: async () => HERRAMIENTAS_DEMO.filter((h) => !h.present).map((h) => h.key),
       get_tools: async (path) => herramientasDemo(path),
       run_tool: async (path, tool) => {
         await esperar(2500);
@@ -394,6 +396,7 @@ const api = demo
       initial_paths: () => tauri.core.invoke("initial_paths"),
       file_info: (path) => tauri.core.invoke("file_info", { path }),
       get_targets_many: (paths) => tauri.core.invoke("get_targets_many", { paths }),
+      missing_tools: (paths) => tauri.core.invoke("missing_tools", { paths }),
       show_wheel: (expand) => tauri.core.invoke("show_wheel", { expand }),
       cursor_page_pos: () => tauri.core.invoke("cursor_page_pos"),
       place_wheel: (x, y) => tauri.core.invoke("place_wheel", { x, y }),
@@ -440,6 +443,7 @@ let textoCentro = ""; // what the pill shows when no segment is active
 let formatos = [];
 let herramientas = []; // what get_tools returns (empty with several files)
 let segmentos = []; // what the wheel shows now: formats, tools or options
+let ruedaFaltan = []; // keys of installer::TOOLS needed by these files and not installed (the badge)
 let nivel = "conversion"; // conversion | herramientas | opciones
 let herramienta = null; // the chosen tool (for its options wheel)
 let activo = -1;
@@ -757,11 +761,78 @@ function resaltar(i) {
   actualizarPildora();
 }
 
+// Asks which tools of the current selection are missing and paints the badge. A failure just
+// leaves the wheel as it was: this warning is an extra and must never block or empty it.
+async function pedirFaltantesDeRueda() {
+  const pedidas = rutas.slice();
+  let claves = [];
+  try {
+    claves = await api.missing_tools(pedidas);
+  } catch (e) {
+    return;
+  }
+  if (pedidas.join("|") !== rutas.join("|")) return; // the selection changed while asking
+  ruedaFaltan = Array.isArray(claves) ? claves : [];
+  pintarAvisoRueda();
+}
+
+function nombresFaltantes() {
+  return ruedaFaltan.map((k) => NOMBRES_HERR[k] || k).join(" · ");
+}
+
+function pintarAvisoRueda() {
+  const b = $("rueda-aviso");
+  if (!b) return;
+  if (!ruedaFaltan.length) {
+    b.hidden = true;
+    b.disabled = false;
+    return;
+  }
+  b.hidden = false;
+  if (!b.dataset.instalando) b.textContent = t("wheel.needsTools", { names: nombresFaltantes() });
+}
+
+// The badge is a button: clicking it installs what is missing and shows the progress in the same
+// place. Whatever it says, the formats stay clickable either way.
+async function instalarFaltantesDeRueda() {
+  const b = $("rueda-aviso");
+  const claves = ruedaFaltan.slice();
+  if (!claves.length || b.dataset.instalando) return;
+  b.dataset.instalando = "1";
+  b.disabled = true;
+  b.textContent = t("tools.installing");
+  const quitar = await api.on_install_progress((ev) => {
+    const nombre = NOMBRES_HERR[ev.key] || ev.key;
+    if (ev.phase === "log") {
+      if (ev.line) b.textContent = ev.line;
+    } else if (ev.phase === "done") {
+      b.textContent = nombre + " · " + t("tools.stDone");
+    } else if (ev.phase === "timeout") {
+      b.textContent = t("tools.timedOutLine", { name: nombre });
+    } else if (ev.phase === "error") {
+      b.textContent = nombre + " · " + t("tools.stFailed");
+    } else if (ev.phase === "cancelled") {
+      b.textContent = t("tools.cancelled");
+    }
+  });
+  try {
+    await api.install_tools(claves);
+  } catch (e) {
+    b.textContent = sinCodigo(e);
+  } finally {
+    if (quitar) quitar();
+    delete b.dataset.instalando;
+    b.disabled = false;
+  }
+  await pedirFaltantesDeRueda(); // the last word comes from the backend, not from the events
+}
+
 function mostrarRueda() {
   mostrarVista("rueda");
   // When going back to the wheel (from the settings, the editor or a cancel) the idle close
   // starts counting again; otherwise, the wheel stayed open until the mouse moved
   if (rearmarAbandono) rearmarAbandono();
+  pedirFaltantesDeRueda();
 }
 
 // position in CSS px of the window -> segment index (or -1)
@@ -1362,7 +1433,7 @@ function alHacerClic(e) {
   // The clicks of the editor (Apply, Cancel...) are not the wheel's: without this, the click on Apply
   // arrived here with the view already changed, fell "outside the wheel" and closed the app
   // The gear has its own handler; with the keyboard its click arrives with coordinates 0,0 and would pass as "outside the wheel"
-  if (e.target.closest && e.target.closest("#vista-editor, #vista-ajustes, #ajustes")) return;
+  if (e.target.closest && e.target.closest("#vista-editor, #vista-ajustes, #ajustes, #rueda-aviso")) return;
   if (vistaActual === "rueda") {
     const i = segmentoBajo(e.clientX, e.clientY);
     if (i >= 0) elegir(i);
@@ -1493,6 +1564,7 @@ async function iniciar() {
   $("aviso-herr-instalar").addEventListener("click", instalarDesdeAviso);
   $("aviso-herr-min").addEventListener("click", () => api.minimize_window && api.minimize_window());
   $("aviso-herr-luego").addEventListener("click", descartarAviso);
+  $("rueda-aviso").addEventListener("click", instalarFaltantesDeRueda);
   document.addEventListener("click", alHacerClic);
   document.addEventListener("keydown", alPulsarTecla);
   $("rueda").addEventListener("mouseleave", () => {

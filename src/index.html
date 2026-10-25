@@ -45,6 +45,10 @@
         <div id="centro">
           <div id="centro-icono"></div>
           <div id="pildora" class="pildora" aria-live="polite"></div>
+          <!-- Names the tools this file may need and are not installed. It is a button because
+               clicking it installs them; #centro ignores the mouse, so it asks for pointer-events
+               in the CSS. It never removes a format, it only warns before the click. -->
+          <button id="rueda-aviso" class="rueda-aviso" type="button" hidden></button>
         </div>
         <button id="ajustes" class="ajustes" type="button" hidden>
           <svg viewBox="0 0 24 24" aria-hidden="true">

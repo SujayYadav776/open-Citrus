@@ -501,6 +501,7 @@ const NOMBRES_HERR = {
   sevenzip: "7-Zip",
   poppler: "Poppler",
   ghostscript: "Ghostscript",
+  miktex: "MiKTeX",
 };
 
 let avisoHerr = []; // every required tool with its live present flag (the checklist rows)

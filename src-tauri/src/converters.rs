@@ -38,6 +38,9 @@ const TSV_FILTER: &str = "Text - txt - csv (StarCalc):9,34,76,1";
 const SUBTITLE_TARGETS: [&str; 3] = ["srt", "vtt", "txt"];
 const ARCHIVE_TARGETS: [&str; 3] = ["zip", "tar", "tar.gz"];
 const FOLDER_TARGETS: [&str; 3] = ["zip", "tar", "tar.gz"];
+// LaTeX source files: compiled to PDF with MiKTeX (pdflatex/xelatex)
+const LATEX_EXT: [&str; 2] = ["tex", "latex"];
+const LATEX_TARGETS: [&str; 1] = ["pdf"];
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub(crate) enum Kind {
@@ -46,6 +49,7 @@ pub(crate) enum Kind {
     Video,
     Pdf,
     Document,
+    Latex,
     Slides,
     Spreadsheet,
     Subtitle,
@@ -98,6 +102,8 @@ pub(crate) fn category(path: &Path) -> Option<Kind> {
         Some(Kind::Video)
     } else if PDF_EXT.contains(&ext.as_str()) {
         Some(Kind::Pdf)
+    } else if LATEX_EXT.contains(&ext.as_str()) {
+        Some(Kind::Latex)
     } else if DOCUMENT_EXT.contains(&ext.as_str()) {
         Some(Kind::Document)
     } else if SLIDES_EXT.contains(&ext.as_str()) {
@@ -121,6 +127,7 @@ pub(crate) fn type_targets(kind: Kind) -> &'static [&'static str] {
         Kind::Video => &VIDEO_TARGETS,
         Kind::Pdf => &PDF_TARGETS,
         Kind::Document => &DOCUMENT_TARGETS,
+        Kind::Latex => &LATEX_TARGETS,
         Kind::Slides => &SLIDES_TARGETS,
         Kind::Spreadsheet => &SPREADSHEET_TARGETS,
         Kind::Subtitle => &SUBTITLE_TARGETS,
@@ -146,6 +153,7 @@ pub(crate) fn tools_for_kind(kind: Kind) -> &'static [&'static str] {
         Kind::Audio | Kind::Video | Kind::Subtitle => &["ffmpeg"],
         Kind::Pdf => &["poppler"],
         Kind::Document | Kind::Slides | Kind::Spreadsheet => &["libreoffice", "pandoc"],
+        Kind::Latex => &["miktex"],
         Kind::Archive => &["sevenzip"],
         // packing a folder normally uses `zip`, which has no entry here because there is nothing
         // to offer for it; 7-Zip is the fallback the app can actually install
@@ -839,6 +847,31 @@ fn convert_document(src: &Path, out: &Path, target: &str) -> Result<(), String> 
     convert_pandoc(src, out, target)
 }
 
+// Compiles a LaTeX source to PDF with MiKTeX (pdflatex/xelatex). It runs from the file's own
+// folder so \input{} and \includegraphics{} resolve, but sends the .pdf/.aux/.log to a temporary
+// output directory (--output-directory) so the source folder is never touched and an existing
+// "<name>.pdf" is never overwritten. nonstopmode means a missing package or an error never waits
+// on a keypress. Success is judged by the produced PDF, because LaTeX often exits non-zero on
+// warnings or undefined references yet still writes a valid file.
+fn convert_latex(src: &Path, out: &Path) -> Result<(), String> {
+    let tool = need(&["pdflatex", "xelatex"], &install_hint("miktex"))?;
+    let folder = src.parent().ok_or_else(|| tr("Invalid path", "Ruta no válida"))?;
+    let tmp = TempDir::new()?;
+    let stem = src.file_stem().unwrap_or_default().to_string_lossy().to_string();
+    let outdir = format!("--output-directory={}", st(tmp.path()));
+    let src_str = st(src);
+    let res = run_in(&tool, &["--interaction=nonstopmode", outdir.as_str(), src_str.as_str()], Some(folder));
+    let produced = tmp.path().join(format!("{stem}.pdf"));
+    if produced.exists() {
+        return move_file(&produced, out);
+    }
+    // Nothing came out: a real cancel keeps its code; otherwise it is a compile failure.
+    match res {
+        Err(e) if has_code(&e, CANCELLED) => Err(e),
+        _ => Err(tr("The LaTeX file could not be compiled", "No se pudo compilar el archivo LaTeX")),
+    }
+}
+
 fn convert_slides(src: &Path, out: &Path, target: &str) -> Result<(), String> {
     let tmp = TempDir::new()?;
     let pdf = libreoffice(src, tmp.path(), "pdf", None)?;
@@ -1110,6 +1143,7 @@ fn convert_one(path: &str, format: &str, progress: Option<Progress>) -> Result<S
         Kind::Audio | Kind::Video => convert_ffmpeg(&st(&src), &st(&out), format, progress),
         Kind::Pdf => convert_pdf(&src, &out, format),
         Kind::Document => convert_document(&src, &out, format),
+        Kind::Latex => convert_latex(&src, &out),
         Kind::Slides => convert_slides(&src, &out, format),
         Kind::Spreadsheet => convert_spreadsheet(&src, &out, format),
         Kind::Subtitle => convert_subtitle(&src, &out, format, progress),
@@ -1508,9 +1542,37 @@ pub(crate) mod tests {
         assert_eq!(category(Path::new("a.flac")), Some(Kind::Audio));
         assert_eq!(category(Path::new("a.mkv")), Some(Kind::Video));
         assert_eq!(category(Path::new("a.pdf")), Some(Kind::Pdf));
+        assert_eq!(category(Path::new("a.tex")), Some(Kind::Latex));
+        assert_eq!(category(Path::new("a.LATEX")), Some(Kind::Latex));
         assert_eq!(category(Path::new("a.HTM")), Some(Kind::Document));
         assert_eq!(category(Path::new("a.xyz")), None);
         assert_eq!(category(Path::new("sinextension")), None);
+    }
+
+    #[test]
+    fn los_targets_de_latex() {
+        let tex = Path::new("a.tex");
+        assert_eq!(targets_of(tex), vec!["pdf".to_string()]);
+        assert_eq!(type_targets(Kind::Latex), ["pdf"]);
+        assert_eq!(tools_for_kind(Kind::Latex), ["miktex"]);
+        assert!(!is_already(tex, "pdf"));
+    }
+
+    #[test]
+    fn compila_un_tex_a_pdf() {
+        let _guard = lock();
+        if !tool_exists("pdflatex") {
+            return;
+        }
+        let dir = test_dir("latex");
+        let tex = dir.join("doc.tex");
+        std::fs::write(&tex, "\\documentclass{article}\\begin{document}Hello Citrus\\end{document}\n").unwrap();
+        let out = convert_blocking(&st(&tex), "pdf").unwrap();
+        let bytes = std::fs::read(&out).unwrap();
+        assert!(bytes.starts_with(b"%PDF"), "no es un PDF");
+        // the source folder is left untouched (no stray doc.pdf / aux files next to the .tex)
+        assert!(!dir.join("doc.pdf").exists() || dir.join("doc.pdf") == Path::new(&out));
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 
     #[test]

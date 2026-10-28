@@ -77,6 +77,7 @@
   "tools.desc.sevenzip": "Archives",
   "tools.desc.poppler": "Aperçu et texte PDF",
   "tools.desc.ghostscript": "Réduction de la taille de PDF",
+  "tools.desc.miktex": "LaTeX vers PDF",
 
   "tool.compress": "RÉDUIRE LA TAILLE",
   "tool.zip": "ZIP",

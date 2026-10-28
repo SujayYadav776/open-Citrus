@@ -91,5 +91,6 @@
   "winget is not available on this system": "O winget não está disponível neste sistema",
   "Could not start the installer: {error}": "Não foi possível iniciar o instalador: {error}",
   "An installation is already running": "Já existe uma instalação em andamento",
-  "The conversion took too long and {program} was stopped": "A conversão demorou tempo demais e o {program} foi interrompido"
+  "The conversion took too long and {program} was stopped": "A conversão demorou tempo demais e o {program} foi interrompido",
+  "The LaTeX file could not be compiled": "O arquivo LaTeX não pôde ser compilado"
 }

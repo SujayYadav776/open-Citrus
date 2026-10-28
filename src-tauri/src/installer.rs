@@ -35,7 +35,7 @@ pub struct ToolSpec {
 }
 
 // Order matters: the essentials first, then the ones that unlock extra formats.
-const TOOLS: [ToolSpec; 7] = [
+const TOOLS: [ToolSpec; 8] = [
     ToolSpec { key: "ffmpeg", apt_names: &["ffmpeg"], winget: Some("Gyan.FFmpeg"), manual_url: None, programs: &["ffmpeg", "ffprobe"], essential: true, needs_admin: false, timeout_secs: 900 },
     ToolSpec { key: "imagemagick", apt_names: &["imagemagick"], winget: Some("ImageMagick.ImageMagick"), manual_url: None, programs: &["magick", "convert"], essential: true, needs_admin: true, timeout_secs: 1800 },
     ToolSpec { key: "pandoc", apt_names: &["pandoc"], winget: Some("JohnMacFarlane.Pandoc"), manual_url: None, programs: &["pandoc"], essential: false, needs_admin: true, timeout_secs: 1800 },
@@ -44,6 +44,8 @@ const TOOLS: [ToolSpec; 7] = [
     ToolSpec { key: "poppler", apt_names: &["poppler-utils"], winget: Some("oschwartz10612.Poppler"), manual_url: None, programs: &["pdftoppm", "pdftotext"], essential: false, needs_admin: false, timeout_secs: 900 },
     // Ghostscript is not on winget; it must be installed from the official page.
     ToolSpec { key: "ghostscript", apt_names: &["ghostscript"], winget: None, manual_url: Some("https://ghostscript.com/releases/gsdnld.html"), programs: &["gs", "gswin64c"], essential: false, needs_admin: false, timeout_secs: 900 },
+    // MiKTeX compiles LaTeX (.tex/.latex) to PDF; the net installer downloads packages on demand.
+    ToolSpec { key: "miktex", apt_names: &["miktex"], winget: Some("MiKTeX.MiKTeX"), manual_url: None, programs: &["pdflatex", "xelatex", "texify"], essential: false, needs_admin: false, timeout_secs: 1800 },
 ];
 
 // The install instruction for a missing tool, taken from the table above: the winget command

@@ -29,10 +29,10 @@ const IMAGE_TARGETS: [&str; 7] = ["jpg", "png", "webp", "tiff", "avif", "bmp", "
 const AUDIO_TARGETS: [&str; 8] = ["mp3", "m4a", "wav", "flac", "ogg", "opus", "aiff", "wma"];
 const VIDEO_TARGETS: [&str; 8] = ["mp4", "mov", "mkv", "webm", "avi", "wmv", "gif", "mp3"];
 // pptx and xlsx from the earlier Python version are not ported (Python needs openpyxl and LibreOffice does not do it well)
-const PDF_TARGETS: [&str; 6] = ["docx", "jpg", "png", "epub", "txt", "md"];
-const DOCUMENT_TARGETS: [&str; 8] = ["docx", "md", "txt", "epub", "html", "pdf", "jpg", "png"];
-const SLIDES_TARGETS: [&str; 3] = ["pdf", "jpg", "png"];
-const SPREADSHEET_TARGETS: [&str; 5] = ["xlsx", "ods", "csv", "tsv", "pdf"];
+const PDF_TARGETS: [&str; 7] = ["docx", "jpg", "png", "epub", "txt", "md", "tex"];
+const DOCUMENT_TARGETS: [&str; 9] = ["docx", "md", "txt", "epub", "html", "pdf", "jpg", "png", "tex"];
+const SLIDES_TARGETS: [&str; 4] = ["pdf", "jpg", "png", "tex"];
+const SPREADSHEET_TARGETS: [&str; 6] = ["xlsx", "ods", "csv", "tsv", "pdf", "tex"];
 // LibreOffice filter for TSV: tab separator (9), no quotes (34), UTF-8 (76), from row 1
 const TSV_FILTER: &str = "Text - txt - csv (StarCalc):9,34,76,1";
 const SUBTITLE_TARGETS: [&str; 3] = ["srt", "vtt", "txt"];
@@ -681,6 +681,14 @@ fn convert_pandoc(src: &Path, out: &Path, target: &str) -> Result<(), String> {
     if target == "txt" {
         args.extend(["-t", "plain"]);
     }
+    // .tex: a complete, compilable LaTeX document. A csv (the normalized intermediate from
+    // spreadsheets) needs the explicit csv reader so pandoc builds a table.
+    if target == "tex" {
+        args.extend(["-s", "-t", "latex"]);
+        if get_ext(src) == "csv" {
+            args.extend(["-f", "csv"]);
+        }
+    }
     // md and html link the images of the document: without extracting them, the links (media/rId1.jpg)
     // end up broken. They go to a new "<name>_media" folder next to the result (pandoc only creates it if
     // there are images) and, with cwd = that folder, the links come out relative and the result can be moved
@@ -873,12 +881,27 @@ fn convert_latex(src: &Path, out: &Path) -> Result<(), String> {
 }
 
 fn convert_slides(src: &Path, out: &Path, target: &str) -> Result<(), String> {
+    if target == "tex" {
+        // pandoc reads pptx directly; odp/ppt go through pptx first (LibreOffice)
+        if get_ext(src) == "pptx" {
+            return convert_pandoc(src, out, "tex");
+        }
+        let tmp = TempDir::new()?;
+        let pptx = libreoffice(src, tmp.path(), "pptx", None)?;
+        return convert_pandoc(&pptx, out, "tex");
+    }
     let tmp = TempDir::new()?;
     let pdf = libreoffice(src, tmp.path(), "pdf", None)?;
     finish_pdf(&pdf, out, target)
 }
 
 fn convert_spreadsheet(src: &Path, out: &Path, target: &str) -> Result<(), String> {
+    if target == "tex" {
+        // normalize to csv first (whatever the source), then a LaTeX table via pandoc
+        let tmp = TempDir::new()?;
+        let csv = libreoffice(src, tmp.path(), "csv", None)?;
+        return convert_pandoc(&csv, out, "tex");
+    }
     let convert_to = if target == "tsv" {
         format!("csv:{TSV_FILTER}")
     } else {
@@ -1576,6 +1599,22 @@ pub(crate) mod tests {
     }
 
     #[test]
+    fn convierte_un_md_a_tex() {
+        let _guard = lock();
+        if !tool_exists("pandoc") {
+            return;
+        }
+        let dir = test_dir("md-tex");
+        let md = dir.join("doc.md");
+        std::fs::write(&md, "# Title\n\nHello Citrus\n").unwrap();
+        let out = convert_blocking(&st(&md), "tex").unwrap();
+        let text = std::fs::read_to_string(&out).unwrap();
+        assert!(text.contains("\\documentclass"), "no es un LaTeX standalone: {text}");
+        assert!(text.contains("Hello Citrus"), "falta el texto: {text}");
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
     fn targets_excluyen_el_propio_formato() {
         let t = targets_of(Path::new("a.png"));
         assert_eq!(t, ["jpg", "webp", "tiff", "avif", "bmp", "pdf"]);
@@ -1679,12 +1718,12 @@ trailer<</Root 1 0 R/Size 6>>\n%%EOF\n";
 
     #[test]
     fn destinos_de_pdf_y_documento() {
-        assert_eq!(targets_of(Path::new("a.pdf")), ["docx", "jpg", "png", "epub", "txt", "md"]);
+        assert_eq!(targets_of(Path::new("a.pdf")), ["docx", "jpg", "png", "epub", "txt", "md", "tex"]);
         let t = targets_of(Path::new("a.docx"));
-        assert_eq!(t, ["md", "txt", "epub", "html", "pdf", "jpg", "png"]);
+        assert_eq!(t, ["md", "txt", "epub", "html", "pdf", "jpg", "png", "tex"]);
         assert!(!targets_of(Path::new("a.htm")).contains(&"html".to_string()));
         assert!(targets_of(Path::new("a.doc")).contains(&"docx".to_string()));
-        assert!(targets_of(Path::new("a.rtf")).len() <= 8);
+        assert!(targets_of(Path::new("a.rtf")).len() <= 9);
     }
 
     #[test]
@@ -1797,10 +1836,10 @@ trailer<</Root 1 0 R/Size 6>>\n%%EOF\n";
 
     #[test]
     fn destinos_de_presentaciones_y_hojas() {
-        assert_eq!(targets_of(Path::new("a.pptx")), ["pdf", "jpg", "png"]);
-        assert_eq!(targets_of(Path::new("a.odp")), ["pdf", "jpg", "png"]);
-        assert_eq!(targets_of(Path::new("a.xlsx")), ["ods", "csv", "tsv", "pdf"]);
-        assert_eq!(targets_of(Path::new("a.tsv")), ["xlsx", "ods", "csv", "pdf"]);
+        assert_eq!(targets_of(Path::new("a.pptx")), ["pdf", "jpg", "png", "tex"]);
+        assert_eq!(targets_of(Path::new("a.odp")), ["pdf", "jpg", "png", "tex"]);
+        assert_eq!(targets_of(Path::new("a.xlsx")), ["ods", "csv", "tsv", "pdf", "tex"]);
+        assert_eq!(targets_of(Path::new("a.tsv")), ["xlsx", "ods", "csv", "pdf", "tex"]);
         assert!(!targets_of(Path::new("a.csv")).contains(&"csv".to_string()));
     }
 

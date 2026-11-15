@@ -1,5 +1,39 @@
 # Release notes
 
+## v1.4.0 - Citrus (Windows)
+
+Two‑way LaTeX support. This is the first release since v1.2.5 and also carries the
+LaTeX→PDF feature that was developed under v1.3.0 but never shipped.
+
+### What's new
+
+- **LaTeX → PDF.** `.tex` / `.latex` files are now a recognized type. Citrus compiles them
+  with MiKTeX (`pdflatex`/`xelatex`) using `--interaction=nonstopmode` from the file's own
+  folder (so `\input{}` and `\includegraphics{}` resolve), sending the `.pdf`/`.aux`/`.log` to
+  a temporary output directory so your source folder is never touched or overwritten.
+- **Documents → LaTeX.** docx, doc, odt, rtf, md, txt, epub and html now offer a `.tex`
+  target that produces a complete, compilable standalone LaTeX document (via pandoc).
+- **Slides, spreadsheets and PDF → LaTeX.** pptx/ppt/odp become LaTeX (through pandoc, with a
+  LibreOffice pre‑step for the binary formats); xlsx/xls/ods/csv/tsv become LaTeX tables; and a
+  PDF becomes LaTeX through the existing LibreOffice→pandoc path.
+- **MiKTeX in the setup checklist.** MiKTeX is now a detected, one‑click‑installable tool
+  (winget `MiKTeX.MiKTeX`), so it appears in the first‑run checklist and Settings → Converter
+  tools, and a missing‑tool error names the exact install command.
+
+### Release artifacts
+
+| File | Size | SHA-256 |
+|---|---|---|
+| `Citrus_1.4.0_x64-setup.exe` (NSIS installer) | 1,694,799 B (1.62 MiB) | `f645fd6468de6ca06bce00710b2e618b7c62ecb1a474c6a9ca973bdcee462f50` |
+| `citrus.exe` (portable, x64) | 5,221,376 B (4.98 MiB) | `32d4804c65728b368636e3d3ffc9b79a24cb86722336ace7b1fb8b05469e4c8e` |
+
+### Verification
+
+- `cargo test --lib`: 139 passed, 0 failed, 1 ignored (includes real LaTeX→PDF and md→tex
+  integration tests that run when MiKTeX/pandoc are present).
+- GitHub Actions green on both ubuntu-24.04 and windows-latest.
+- LaTeX→PDF and md→tex verified end‑to‑end on a real Windows device.
+
 ## v1.2.5 - Citrus (Windows)
 
 Fixes the v1.2.4 click‑through (it had disabled the whole window, not just the empty ring)
